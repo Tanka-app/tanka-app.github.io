@@ -1,0 +1,1280 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>รถรับส่งพนักงาน</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600&family=Prompt:wght@500;600&family=Sarabun:wght@400;600;700&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="theme-color" content="#0f5c7a">
+<style>
+/* Layout: sticky toolbar (month + tabs) → day strip → two shift columns that stack on phones */
+:root{
+  --bg:#f2f4f6; --surface:#ffffff; --sunk:#e8ecf0; --ink:#16212b; --muted:#5b6977; --line:#d6dde4;
+  --accent:#0f5c7a; --accent-ink:#ffffff;
+  --morning:#9a5206; --morning-bg:#fcefdc; --night:#353a96; --night-bg:#e8e9fb;
+  --ot:#ffd23f; --ot-ink:#2a2000;
+  --ok:#17784a; --ok-bg:#ddf2e6; --bad:#b42318; --bad-bg:#fde6e3;
+  --f-body:"IBM Plex Sans Thai",system-ui,sans-serif; --f-head:"Prompt","IBM Plex Sans Thai",system-ui,sans-serif;
+  --r:10px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f151b; --surface:#17202a; --sunk:#1e2833; --ink:#e5ecf2; --muted:#93a1ae; --line:#2b3642;
+  --accent:#5cb8d8; --accent-ink:#06202b;
+  --morning:#f2b155; --morning-bg:#3a2a12; --night:#adb1ff; --night-bg:#24254a;
+  --ot:#e8bd2c; --ot-ink:#1a1400; --ok:#62d497; --ok-bg:#12321f; --bad:#ff8a80; --bad-bg:#3d1714; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f151b; --surface:#17202a; --sunk:#1e2833; --ink:#e5ecf2; --muted:#93a1ae; --line:#2b3642;
+  --accent:#5cb8d8; --accent-ink:#06202b;
+  --morning:#f2b155; --morning-bg:#3a2a12; --night:#adb1ff; --night-bg:#24254a;
+  --ot:#e8bd2c; --ot-ink:#1a1400; --ok:#62d497; --ok-bg:#12321f; --bad:#ff8a80; --bad-bg:#3d1714; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--f-body);font-variant-numeric:tabular-nums}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:16px;padding-block:0 96px}
+h1,h2,h3{font-family:var(--f-head);font-weight:600;margin:0;text-wrap:balance}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:6px 12px;min-height:36px}
+button:hover{border-color:var(--accent)}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+button.ghost{background:transparent;border-color:transparent;color:var(--muted)}
+button.ghost:hover{color:var(--ink);border-color:var(--line)}
+button:disabled{opacity:.45;cursor:not-allowed}
+select,input{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 10px;min-height:36px;min-width:0}
+
+/* top bar */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding-block:12px 0}
+.top-row{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;justify-content:space-between}
+.brand{display:flex;flex-direction:column;gap:0}
+.brand h1{font-size:20px}
+.brand small{color:var(--muted);font-size:12.5px}
+.tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.tabs{display:flex;gap:4px;margin-top:10px;overflow-x:auto}
+.tab{border:0;border-bottom:3px solid transparent;border-radius:0;background:none;padding:8px 14px;color:var(--muted);font-weight:500;white-space:nowrap}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+
+.banner{margin-top:14px;padding:12px 14px;border-radius:var(--r);border:1px solid var(--line);background:var(--surface);display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.banner.warn{background:var(--morning-bg);border-color:transparent}
+
+/* day strip */
+.strip{display:flex;gap:6px;overflow-x:auto;padding-block:14px 6px;scrollbar-width:thin}
+.chip{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:1px;min-width:52px;padding:6px 6px 7px;border-radius:9px;border:1px solid var(--line);background:var(--surface)}
+.chip .wd{font-size:11.5px;color:var(--muted)}
+.chip .dn{font:600 18px/1.1 var(--f-head)}
+.chip .cnt{font-size:11px;color:var(--muted);display:flex;gap:4px}
+.chip.we .wd{color:var(--bad)}
+.chip.today{border-color:var(--accent)}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.chip[aria-pressed="true"] .wd,.chip[aria-pressed="true"] .cnt{color:var(--accent-ink)}
+.chip .dot{width:6px;height:6px;border-radius:50%;background:var(--ot);display:inline-block;margin-top:2px}
+
+.dayhead{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;margin-block:10px 14px}
+.dayhead h2{font-size:22px}
+.pills{display:flex;flex-wrap:wrap;gap:6px}
+.pill{font-size:12.5px;padding:3px 9px;border-radius:999px;background:var(--sunk);color:var(--ink);white-space:nowrap}
+.pill.ot{background:var(--ot);color:var(--ot-ink);font-weight:600}
+.pill.ok{background:var(--ok-bg);color:var(--ok)}
+.pill.bad{background:var(--bad-bg);color:var(--bad)}
+
+.shifts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:16px;align-items:start}
+.shift{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;min-width:0}
+.shift-h{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;padding:10px 12px}
+.shift.morning .shift-h{background:var(--morning-bg)}
+.shift.night .shift-h{background:var(--night-bg)}
+.shift-h h3{font-size:16px}
+.shift.morning h3{color:var(--morning)} .shift.night h3{color:var(--night)}
+.shift-h .t{font-size:12.5px;color:var(--muted);font-weight:400;margin-left:6px}
+.shift-h .btns{display:flex;gap:6px}
+.shift-h button{min-height:32px;padding:4px 10px;font-size:13.5px}
+ol.riders{list-style:none;margin:0;padding:0}
+.rider{display:grid;grid-template-columns:30px 1fr auto;gap:4px 10px;padding:10px 12px;border-top:1px solid var(--line);align-items:center}
+.rider.st-no{background:var(--bad-bg)}
+.rider.st-no .who b{text-decoration:line-through;text-decoration-color:var(--bad)}
+.num{font:600 15px var(--f-head);width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:var(--sunk)}
+.rider.st-ride .num{background:var(--ok);color:var(--surface)}
+.who{min-width:0}
+.who b{font-weight:600}
+.team{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:5px;padding:0 5px;margin-left:4px;white-space:nowrap}
+.otb{font-size:11.5px;font-weight:700;background:var(--ot);color:var(--ot-ink);border-radius:5px;padding:0 6px;margin-left:4px}
+.meta{font-size:13px;color:var(--muted);overflow-wrap:anywhere}
+.acts{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end}
+.acts button{min-height:32px;padding:3px 9px;font-size:13px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;border-radius:0;min-height:32px}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.on-ride{background:var(--ok);color:var(--surface);font-weight:600}
+.seg button.on-no{background:var(--bad);color:var(--surface);font-weight:600}
+.segrow{display:inline-flex;gap:4px;align-items:stretch}
+.acts .backbtn{font-weight:600}
+.acts .backbtn.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.rider.back-on .who b::after{content:' ↩';color:var(--accent);font-weight:700}
+.acts .otbtn.on{background:var(--ot);color:var(--ot-ink);border-color:var(--ot);font-weight:700}
+.empty-row{padding:16px 12px;color:var(--muted);border-top:1px solid var(--line);font-size:14px}
+@media (max-width:560px){.rider{grid-template-columns:30px 1fr}.acts{grid-column:1/-1;justify-content:flex-start}}
+.only-m,.ts,.ti,.shift-switch,.pcards{display:none}
+@media (max-width:640px){
+  body{font-size:16px}
+  .only-d,.tl,.ptable{display:none}
+  .only-m{display:inline-flex;align-items:center}
+  .ts,.ti{display:block}
+  .wrap{padding-block:0 calc(88px + env(safe-area-inset-bottom,0px))}
+  .top{padding-block:10px 10px}
+  .brand h1{font-size:18px}.brand small{display:none}
+  .top-row{flex-wrap:nowrap}
+  .tools{flex-wrap:nowrap;flex:1;justify-content:flex-end;min-width:0}
+  #monthSel{flex:1;max-width:190px}
+  .tabs{position:fixed;left:0;right:0;bottom:0;margin:0;z-index:10;background:var(--surface);border-top:1px solid var(--line);padding:4px 8px env(safe-area-inset-bottom,0px);justify-content:space-around;gap:0}
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:0;border-bottom:0;border-top:3px solid transparent;padding:6px 4px 8px;font-size:12.5px;min-height:56px}
+  .tab .ti{font-size:20px;line-height:1.2}
+  .tab[aria-selected="true"]{border-top-color:var(--accent);border-bottom-color:transparent;color:var(--accent)}
+  .strip{position:sticky;top:calc(env(safe-area-inset-top,0px) + 57px);z-index:4;background:var(--bg);margin-inline:-16px;padding-inline:16px;padding-block:10px 8px}
+  .chip{min-width:48px}
+  .dayhead{margin-block:6px 10px}.dayhead h2{font-size:19px}
+  .dayhead>div:last-child{display:none!important}
+  .brand h1 .ts{display:inline}
+  .shift-switch{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:12px;background:var(--surface)}
+  .shift-switch button{flex:1;border:0;border-radius:0;min-height:44px;font-weight:600}
+  .shift-switch button+button{border-left:1px solid var(--line)}
+  .shift-switch button.on.morning{background:var(--morning-bg);color:var(--morning)}
+  .shift-switch button.on.night{background:var(--night-bg);color:var(--night)}
+  .shift.m-hide{display:none}
+  .shift{border-radius:12px}
+  .rider{grid-template-columns:34px 1fr;padding:12px}
+  .num{width:32px;height:32px}
+  .who b{font-size:16.5px}
+  .meta{font-size:14px}
+  .acts{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .acts .segrow{grid-column:1/-1;display:flex;gap:6px}
+  .acts .seg{flex:1;display:flex}
+  .acts .backbtn{flex:0 0 88px;min-height:46px;font-size:16px}
+  .acts .seg button{flex:1;min-height:46px;font-size:16px}
+  .acts .seg button[data-act="stClear"]{flex:0 0 46px}
+  .acts>button{min-height:40px;font-size:14px}
+  .acts{grid-template-columns:1fr 44px 44px 1fr}
+  .shift-h .btns button{min-height:38px}
+  .pcards{display:flex;flex-direction:column}
+  .pcard{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:12px 14px;border-bottom:1px solid var(--line)}
+  .pcard:last-child{border-bottom:0}
+  .pcard .nm{font-weight:600}
+  .pcard .st{font-size:13.5px;color:var(--muted);grid-column:1/-1}
+  .pcard .otn{font:600 22px/1 var(--f-head);text-align:right}
+  .pcard .otn small{display:block;font:400 11px var(--f-body);color:var(--muted)}
+  .tiles{grid-template-columns:1fr 1fr;gap:8px}.tile .v{font-size:24px}
+  .sheet{max-height:92%}
+  .sheet input,.sheet select{min-height:44px;font-size:16px}
+  .sheet .foot button{min-height:44px}
+  .toast{bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+}
+
+/* tables */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);margin-top:16px;min-width:0}
+.card-h{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line)}
+.card-h h3{font-size:16px}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-weight:600;font-size:12.5px;color:var(--muted);background:var(--sunk);position:sticky;top:0}
+td.n,th.n{text-align:right}
+tr:last-child td{border-bottom:0}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:16px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px}
+.tile .k{font-size:12.5px;color:var(--muted)}
+.tile .v{font:600 28px/1.2 var(--f-head)}
+.bar{height:8px;border-radius:4px;background:var(--sunk);min-width:60px;position:relative;overflow:hidden}
+.bar i{position:absolute;inset:0 auto 0 0;background:var(--ot)}
+
+/* sheet */
+.scrim{position:fixed;inset:0;background:rgba(10,15,20,.45);z-index:20;display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--surface);width:min(560px,100%);border-radius:14px 14px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom,0px));max-height:88%;overflow:auto;display:flex;flex-direction:column;gap:12px}
+@media (min-width:700px){.scrim{align-items:center}.sheet{border-radius:14px}}
+.sheet h3{font-size:18px}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:13px;color:var(--muted)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.row2>*{min-width:0}.field input,.field select{width:100%}
+.sheet .foot{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;margin-top:4px}
+.sheet .foot div{display:flex;gap:8px}
+.hint{font-size:13px;color:var(--muted)}
+.empty{padding:40px 20px;text-align:center;color:var(--muted)}
+.empty h2{color:var(--ink);font-size:20px;margin-bottom:8px}
+.btn-form{margin-top:10px;min-height:42px;font-weight:600;display:inline-flex;align-items:center;gap:6px}
+.pick{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.pick label{display:grid;grid-template-columns:28px 1fr auto;gap:8px;align-items:center;padding:9px 12px;border-top:1px solid var(--line);font-size:14.5px;cursor:pointer}
+.pick label:first-child{border-top:0}
+.pick label.x{opacity:.5}
+.pick .tag{font-size:12px;padding:2px 8px;border-radius:999px;background:var(--sunk);white-space:nowrap}
+.pick input:checked~.tag{background:var(--accent);color:var(--accent-ink)}
+.pick input{min-height:auto;width:18px;height:18px}
+details.cfg summary{cursor:pointer;color:var(--muted);font-size:14px}
+details.cfg[open]{display:flex;flex-direction:column;gap:10px}
+/* request-form viewer: the paper itself is always black-on-white (a printed form) */
+.fv{position:fixed;inset:0;z-index:25;background:var(--bg);display:flex;flex-direction:column}
+.fv-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;padding:10px 16px;padding-top:calc(10px + env(safe-area-inset-top,0px));border-bottom:1px solid var(--line);background:var(--surface)}
+.fv-bar div{display:flex;flex-wrap:wrap;gap:6px}
+.fv-body{flex:1;overflow:auto;padding:16px}
+.paper{background:#fff;color:#111;width:794px;min-height:1123px;max-width:none;margin:0 auto;padding:40px 52px;font:15px/1.5 "Sarabun",sans-serif;box-shadow:0 1px 6px rgba(0,0,0,.18)}
+.paper .lh{display:grid;grid-template-columns:96px minmax(0,1fr) 76px;gap:10px;align-items:center;border-bottom:2.5px solid #222;padding-bottom:8px}
+.paper .lg1{width:100px}.paper .lg2{width:76px;align-self:end}
+.paper .lt{font-size:12px;line-height:1.6;color:#222;white-space:nowrap}.paper .lt b{font-size:15px}
+.paper .ftitle{text-align:center;font-weight:700;font-size:21px;margin:18px 0 10px}
+.paper .dl{text-align:right;font-weight:600;margin-bottom:16px}
+.paper .fl{margin:8px 0 6px;line-height:2}
+.paper .fill{display:inline-block;border-bottom:1.5px dotted #333;text-align:center;color:#0b3a8f;font-weight:600;padding:0 6px;line-height:1.5}
+.paper .box{display:inline-flex;width:17px;height:17px;border:1.5px solid #111;vertical-align:-2px;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#0b3a8f;margin-left:6px}
+.paper table.ft{width:100%;border-collapse:collapse;font-size:14px;table-layout:fixed}
+.paper .ft th,.paper .ft td{border:1px solid #333;padding:4px 7px;height:33px;white-space:normal;color:#111;background:#fff;position:static;overflow-wrap:anywhere}
+.paper .ft th{font-weight:400;text-align:center;font-size:14.5px;color:#111}
+.paper .ft td{color:#0b3a8f}
+.paper .ft td.c{text-align:center}
+.paper .ft tr:last-child td{border-bottom:1px solid #333}
+.fv-scale{transform-origin:top left}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:999px;font-size:14px;z-index:30;max-width:calc(100% - 32px)}
+.danger{color:var(--bad)}
+button.armed{background:var(--bad);color:var(--surface);border-color:var(--bad)}
+@media (prefers-reduced-motion:no-preference){.chip,button{transition:background .12s,border-color .12s}}
+/* van sync chip */
+.sync{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.sync .sd{width:9px;height:9px;border-radius:50%;background:var(--muted);flex:0 0 auto}
+.sync.ok .sd{background:var(--ok)}.sync.busy .sd{background:var(--ot)}.sync.err .sd{background:var(--bad)}
+.sync-st{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:14px}
+.sync-st dt{color:var(--muted)}.sync-st dd{margin:0}
+@media (max-width:640px){.sync{padding-inline:9px}}
+/* route bar */
+.route{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border-top:1px solid var(--line);background:var(--surface)}
+.rleg{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+.rl{font-size:14px;flex:1 1 260px}
+.rl.warn{color:var(--bad);font-size:13.5px}
+.mk{color:var(--morning);font-weight:600}
+.navbtn{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-height:40px;padding:6px 14px;border-radius:8px;background:var(--ok);color:#fff;font-weight:600;text-decoration:none;white-space:nowrap}
+.navbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+details.drop{display:block}
+details.drop summary{cursor:pointer;list-style:none}
+details.drop summary::before{content:'▸ ';color:var(--muted)}
+details.drop[open] summary::before{content:'▾ '}
+ol.dl{margin:6px 0 8px;padding-left:22px;font-size:14px}
+.eta{font-size:12.5px;font-weight:600;color:var(--accent);margin-left:6px;white-space:nowrap}
+.nopin{font-size:11.5px;color:var(--bad);border:1px solid var(--bad);border-radius:5px;padding:0 5px;margin-left:4px;white-space:nowrap}
+.meta a{color:inherit}
+.pin-ok{color:var(--ok);font-weight:600}.pin-no{color:var(--bad)}
+@media (max-width:640px){.navbtn{flex:1 1 100%;min-height:48px;font-size:16px}.rl{font-size:14.5px}}
+.steps{margin:0;padding-left:20px;font-size:14.5px;display:flex;flex-direction:column;gap:4px}
+/* gate (login / owner console) */
+#gate{position:fixed;inset:0;z-index:40;background:var(--bg);overflow:auto;padding:max(24px,env(safe-area-inset-top)) 16px 40px}
+.g-card{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+.g-brand{font:600 22px var(--f-head);color:var(--accent);margin-bottom:6px}
+.g-sub{color:var(--muted);margin:0}
+.g-big{min-height:56px;font-size:17px;border-radius:12px}
+.g-num{font-size:26px;letter-spacing:6px;min-height:56px;text-align:center}
+.g-err{margin:0;min-height:1em}
+.g-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.g-van{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.g-vh{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:center}
+.g-code{background:var(--sunk);border-radius:8px;padding:4px 10px;font-size:14px}.g-code b{font-size:20px;letter-spacing:3px}
+.g-drv{display:flex;flex-direction:column;gap:6px}
+.g-dr{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px;align-items:center;border-top:1px solid var(--line);padding-top:6px}
+.g-dr.off{opacity:.55}.g-dr button{min-height:34px;margin-left:4px}
+.g-row{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}.g-row button{min-height:44px}
+.g-add{background:var(--surface);border:1px dashed var(--line);border-radius:12px;padding:12px}
+.g-add[open]{display:flex;flex-direction:column;gap:10px}.g-add summary{cursor:pointer;font-weight:600}
+@media (max-width:640px){.brand{display:none}#monthSel{max-width:none!important}#btnMore,#btnAcc{min-width:44px;justify-content:center;font-size:18px}}
+</style>
+<div id="gate" hidden></div>
+
+<div class="top"><div class="wrap" style="padding-block:0">
+  <div class="top-row">
+    <div class="brand"><h1><span class="tl">ตารางรับส่งพนักงาน</span><span class="ts">ตารางรับส่ง</span></h1><small id="sub">รถรับ-ส่ง · ลำดับรับ ใกล้ → ไกล</small></div>
+    <div class="tools">
+      <select id="monthSel" aria-label="เลือกเดือน"></select>
+      <button id="btnImport" class="only-d">นำเข้าตารางกะ</button>
+      <button id="btnNew" class="only-d">สร้างเดือนใหม่</button>
+      <button id="btnSync" class="sync" title="ซิงก์กับจอรถ"><span class="sd"></span><span id="syncTxt">จอรถ</span></button>
+      <button id="btnExport" class="only-d">ส่งออก Excel</button>
+      <button id="btnSet" class="only-d" data-act="settings" aria-label="ตั้งค่าเส้นทาง">⚙ ตั้งค่า</button>
+      <button id="btnAll" class="only-d" title="ส่งออกข้อมูลทั้งหมดเพื่อย้ายไประบบใหม่">📦 ส่งออกทั้งหมด</button>
+      <button id="btnMore" class="only-m" aria-label="เมนู">☰</button>
+      <button id="btnAcc" aria-label="บัญชี">👤</button>
+      <input type="file" id="file" accept=".xlsx,.xls" hidden>
+    </div>
+  </div>
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" data-tab="day" id="tab-day"><span class="ti" aria-hidden="true">▦</span><span class="tl">รายวัน</span><span class="ts">รายวัน</span></button>
+    <button class="tab" role="tab" data-tab="sum" id="tab-sum"><span class="ti" aria-hidden="true">Σ</span><span class="tl">สรุป OT / การขึ้นรถ</span><span class="ts">สรุป OT</span></button>
+    <button class="tab" role="tab" data-tab="emp" id="tab-emp"><span class="ti" aria-hidden="true">☰</span><span class="tl">รายชื่อพนักงาน</span><span class="ts">พนักงาน</span></button>
+  </div>
+</div></div>
+
+<main class="wrap" id="main"></main>
+<div id="sheetHost"></div>
+<div id="toastHost"></div>
+
+<script>
+const TH_M=['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+const TH_D=['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
+const TH_DS=['อา','จ','อ','พ','พฤ','ศ','ส'];
+const SH={morning:{label:'กะเช้า',time:'07:00–19:00',xl:'07:00-19:00'},night:{label:'กะดึก',time:'19:00–07:00',xl:'19:00-07:00'}};
+const S={months:[],month:null,days:{},emps:[],tab:'day',day:null,unsub:null,loaded:false,pending:null};
+let db=null, dl=null;
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad=n=>String(n).padStart(2,'0');
+const clone=o=>JSON.parse(JSON.stringify(o??null));
+const str=v=>v==null?'':String(v).trim();
+function toast(msg){const h=$('#toastHost');h.innerHTML=`<div class="toast" role="status">${esc(msg)}</div>`;clearTimeout(toast.t);toast.t=setTimeout(()=>h.innerHTML='',2600)}
+function monthLabel(id){const [y,m]=id.split('-');return `${TH_M[+m-1]} ${y}`}
+function dateOf(dd){const [y,m]=S.month.split('-');return new Date(+y,+m-1,+dd)}
+function empKey(name){let h=0;for(const c of name)h=(h*31+c.codePointAt(0))>>>0;return 'e'+h.toString(36)}
+
+/* ---------- persistence ---------- */
+const chain={};const busy={};
+// While a write to a doc is in flight (plus a short grace), keep the local copy and ignore older snapshots
+function isBusy(path){return (busy[path]||0)>0}
+function saveDoc(path,data){
+  if(!db)return Promise.resolve();
+  const copy=JSON.parse(JSON.stringify(data));
+  busy[path]=(busy[path]||0)+1;
+  chain[path]=(chain[path]||Promise.resolve()).then(()=>db.doc(path).set(copy)).catch(e=>toast('บันทึกไม่สำเร็จ: '+(e?.message||e?.code||e)))
+    .finally(()=>setTimeout(()=>{busy[path]--;},1500));
+  if(typeof VAN!=='undefined'&&VAN.auto&&path.startsWith(`months/${curMonthId()}/days/`))vanSchedulePush();
+  return chain[path];
+}
+function delDoc(path){if(!db)return;chain[path]=(chain[path]||Promise.resolve()).then(()=>db.doc(path).delete()).catch(e=>toast('ลบไม่สำเร็จ: '+(e?.message||e?.code)))}
+function saveDay(dd){const d=S.days[dd];render();return saveDoc(`months/${S.month}/days/${dd}`,d)}
+function saveEmp(e){const {id,...rest}=e;render();return saveDoc(`employees/${id}`,rest)}
+
+function selectMonth(id){
+  if(S.unsub){S.unsub();S.unsub=null}
+  S.month=id;S.days={};S.day=null;
+  if(!id){render();return}
+  if(db){
+    S.unsub=db.collection(`months/${id}/days`).onSnapshot(snap=>{
+      const days={};snap.docs.forEach(d=>{const p=`months/${id}/days/${d.id}`;days[d.id]=(isBusy(p)&&S.days[d.id])?S.days[d.id]:clone(d.data())});S.days=days;pickDay();render();
+    },e=>toast('โหลดข้อมูลไม่ได้: '+e.message));
+  }
+  render();
+}
+function pickDay(){
+  const keys=Object.keys(S.days).sort();
+  if(S.day&&S.days[S.day])return;
+  const now=new Date();const td=`${now.getFullYear()}-${pad(now.getMonth()+1)}`;
+  S.day=(td===S.month&&S.days[pad(now.getDate())])?pad(now.getDate()):keys[0]||null;
+}
+
+/* ---------- helpers on data ---------- */
+function empByName(n){return S.emps.find(e=>e.name===n)}
+function empOf(r){return (r.eid&&S.emps.find(e=>e.eid===r.eid))||empByName(r.name)}
+
+/* ---------- เส้นทาง (ย้ายมาจาก build_routes.py) ---------- */
+// พิกัดเริ่มต้นของพนักงาน (จาก Google My Maps "บ้านพนักงาน TPAC") — ใช้เติมให้คนที่ยังไม่มีพิกัด
+const SEED=[];
+const SEED_NORIDE={};
+const ROUTE_DEF={startName:'จุดจอดรถ',start:'',endName:'โรงงาน',end:'',
+  market:'',marketDow:0,marketOn:true,arrM:'05:50',arrN:'17:50',leaveM:'07:10',leaveN:'19:10',speed:40,stop:1.5,rf:1.3,
+  prec:[]};
+S.route={...ROUTE_DEF};
+const MORNING_C=new Set(['1','1OT','M','MOT','D']),NIGHT_C=new Set(['2','2OT','N','NOT']);
+// รับ "12.67, 101.27" หรือ ลิงก์ Google Maps แบบยาว (@lat,lng / q=lat,lng / !3d..!4d..)
+function parseLL(s){s=String(s||'').trim();if(!s)return null;
+  let m=s.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/)||s.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/)||s.match(/[?&](?:q|query|destination|ll)=(-?\d+\.\d+)(?:,|%2C)\s*(-?\d+\.\d+)/i)||s.match(/^\s*\(?(-?\d{1,2}\.\d+)\s*[, ]\s*(-?\d{1,3}\.\d+)\)?\s*$/);
+  if(!m)return null;const la=+m[1],ln=+m[2];if(!isFinite(la)||!isFinite(ln)||Math.abs(la)>90||Math.abs(ln)>180)return null;return [la,ln]}
+function hav(a,b){const R=6371,p=Math.PI/180;return 2*R*Math.asin(Math.sqrt(Math.sin((b[0]-a[0])*p/2)**2+Math.cos(a[0]*p)*Math.cos(b[0]*p)*Math.sin((b[1]-a[1])*p/2)**2))}
+const solveCache=new Map();
+// เส้นทางสั้นสุด a → ทุกจุด → b (nearest neighbour + 2-opt + or-opt, สุ่มเริ่มใหม่หลายรอบ)
+function solve(pts,a,b){
+  const key=JSON.stringify([a,b,pts]);if(solveCache.has(key))return solveCache.get(key);
+  const nodes=[a,...pts,b],N=nodes.length,D=nodes.map(x=>nodes.map(y=>hav(x,y)));
+  const mid=[...Array(N-2).keys()].map(i=>i+1);
+  const cost=p=>{let c=0,prev=0;for(const x of p){c+=D[prev][x];prev=x}return c+D[prev][N-1]};
+  let best=mid,bc=cost(mid);let seed=1;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
+  for(let t=0;t<12&&mid.length>1;t++){let cur;
+    if(t===0){cur=[];const rem=new Set(mid);let c=0;while(rem.size){let n=null,bd=1e18;for(const x of rem)if(D[c][x]<bd){bd=D[c][x];n=x}cur.push(n);rem.delete(n);c=n}}
+    else{cur=mid.slice();for(let i=cur.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[cur[i],cur[j]]=[cur[j],cur[i]]}}
+    let cc=cost(cur),imp=true;
+    while(imp){imp=false;
+      for(let i=0;i<cur.length;i++)for(let j=i+1;j<cur.length;j++){const nc=cur.slice(0,i).concat(cur.slice(i,j+1).reverse(),cur.slice(j+1));const v=cost(nc);if(v<cc-1e-9){cur=nc;cc=v;imp=true}}
+      for(let i=0;i<cur.length;i++)for(let j=0;j<cur.length;j++){if(i===j)continue;const t2=cur.slice();t2.splice(j,0,t2.splice(i,1)[0]);const v=cost(t2);if(v<cc-1e-9){cur=t2;cc=v;imp=true}}}
+    if(cc<bc){bc=cc;best=cur}}
+  const res=best.map(m=>m-1);solveCache.set(key,res);return res;
+}
+function hm2min(s){const [h,m]=String(s).split(':').map(Number);return h*60+(m||0)}
+function min2hm(x){x=Math.round(x);x=((x%1440)+1440)%1440;return `${pad(Math.floor(x/60))}:${pad(x%60)}`}
+function rPts(){const R=S.route;return {A:parseLL(R.start),B:parseLL(R.end),M:parseLL(R.market)}}
+function llOf(r){const e=empOf(r);return e&&isFinite(e.lat)&&isFinite(e.lng)&&e.lat!==null?[+e.lat,+e.lng]:null}
+function applyPrec(list,pickup){
+  const rules=(S.route.prec||[]).filter(p=>pickup||!p[2]);let ch=true,guard=0;
+  while(ch&&guard++<50){ch=false;for(const [b,a] of rules){const ids=list.map(r=>empOf(r)?.eid||r.eid);const i=ids.indexOf(b),j=ids.indexOf(a);if(i>=0&&j>=0&&i>j){list.splice(j,0,list.splice(i,1)[0]);ch=true}}}
+  return list}
+// คน (ไม่รวมคนที่กด "ไม่ขึ้น") ที่มีพิกัด เรียงตามลำดับในรายการ
+function riders(list){const ok=[],miss=[];for(const r of list||[]){if(r.status==='no')continue;(llOf(r)?ok:miss).push(r)}return {ok,miss}}
+function gmapsLinks(pts,a,b){
+  const f=p=>p[0].toFixed(6)+','+p[1].toFixed(6);const all=[a,...pts,b];const out=[];let i=0;
+  while(i<all.length-1){const seg=all.slice(i,i+11);out.push('https://www.google.com/maps/dir/?api=1&travelmode=driving&origin='+f(seg[0])+'&destination='+f(seg[seg.length-1])+(seg.length>2?'&waypoints='+encodeURIComponent(seg.slice(1,-1).map(f).join('|')):''));i+=seg.length-1}
+  return out}
+function isMarketDay(dd){return S.route.marketOn&&dateOf(dd).getDay()===+S.route.marketDow}
+function mktMin(n){return Math.max(0,2.5*n-2.5)}
+// ขารับ: ใช้ลำดับในรายการ (กดจัดลำดับอัตโนมัติได้) · ตรึงเวลา "ถึงคนแรก"
+function pickupLeg(dd,s){
+  const R=S.route,{A,B,M}=rPts();const L=(S.days[dd]||{})[s]||[];const {ok,miss}=riders(L);
+  if(!A||!B||!ok.length)return {n:0,miss:miss.length};
+  const pts=ok.map(llOf),k=R.rf*60/R.speed,mkt=s==='morning'&&isMarketDay(dd)&&M;
+  let km=0,t=0;const eta=[0];
+  for(let i=1;i<pts.length;i++){const d=hav(pts[i-1],pts[i])*R.rf;km+=d;t+=d*60/R.speed+ +R.stop;eta.push(t)}
+  const last=pts[pts.length-1];let tail=hav(last,B)*R.rf,extra=0,mm=0;
+  if(mkt){mm=mktMin(ok.length);const via=(hav(last,M)+hav(M,B))*R.rf;extra=mm+(via-tail)*60/R.speed;tail=via}
+  const first=hav(A,pts[0])*R.rf;km+=first+tail;
+  const T0=hm2min(s==='morning'?R.arrM:R.arrN)-extra;
+  return {n:ok.length,miss:miss.length,km,dep:T0-first*60/R.speed,arrive:T0+t+ +R.stop+tail*60/R.speed+mm,
+    eta:new Map(ok.map((r,i)=>[r.name,T0+eta[i]])),mkt:mkt?mm:0,links:gmapsLinks(mkt?[...pts,M]:pts,A,B)};
+}
+// ขาส่ง: รอบเช้า = กะดึกของเมื่อวาน, รอบดึก = กะเช้าของวันนี้ · ตรึงเวลาออกจาก TPAC · เรียงสั้นสุดให้เอง
+function dropCrew(dd,s){if(s==='night')return (S.days[dd]||{}).morning||[];const p=pad(+dd-1);return S.days[p]?S.days[p].night||[]:null}
+function dropLeg(dd,s){
+  const R=S.route,{A,B}=rPts();const L=dropCrew(dd,s);if(L===null)return {none:true};
+  const {ok,miss}=riders(L);if(!A||!B||!ok.length)return {n:0,miss:miss.length};
+  const ord=applyPrec(solve(ok.map(llOf),B,A).map(i=>ok[i]),false);const pts=ord.map(llOf);
+  let km=0,t=hm2min(s==='morning'?R.leaveM:R.leaveN);const eta=new Map();let prev=B;
+  ord.forEach((r,i)=>{const d=hav(prev,pts[i])*R.rf;km+=d;t+=d*60/R.speed;eta.set(r.name,t);t+= +R.stop;prev=pts[i]});
+  const back=hav(prev,A)*R.rf;km+=back;
+  return {n:ok.length,miss:miss.length,km,order:ord,eta,home:t+back*60/R.speed,links:gmapsLinks(pts,B,A)};
+}
+// จัดลำดับรับอัตโนมัติ: คนที่มีพิกัดเรียงตามเส้นทางสั้นสุด, คนที่ไม่ขึ้น/ไม่มีพิกัดไปไว้ท้าย
+function optimizeList(L){
+  const {A,B}=rPts();if(!A||!B)return L;const {ok}=riders(L);if(ok.length<2)return [...ok,...L.filter(r=>!ok.includes(r))];
+  const ord=applyPrec(solve(ok.map(llOf),A,B).map(i=>ok[i]),true);return [...ord,...L.filter(r=>!ok.includes(r))]}
+function optimizeDay(dd){const d=S.days[dd];if(!d)return;for(const s of ['morning','night'])d[s]=optimizeList(d[s]||[])}
+// เติมเลขประจำตัว/พิกัด/คนเดินทางเอง จากข้อมูลเดิม ให้คนที่ยังไม่มี — คืน true ถ้ามีการเปลี่ยน
+function seedEmp(e){const x=SEED.find(q=>(e.eid&&q[0]===e.eid)||q[1]===e.name);if(!x)return false;let ch=false;
+  if(!e.eid){e.eid=x[0];ch=true}
+  if(e.lat==null||e.lng==null||e.lat===''){e.lat=x[2];e.lng=x[3];ch=true}
+  if(e.noride===undefined){e.noride=SEED_NORIDE[x[0]]||'';ch=true}
+  return ch}
+function monthRoutes(){let km=0,trips=0;for(const k of Object.keys(S.days))for(const s of ['morning','night']){const p=pickupLeg(k,s),q=dropLeg(k,s);if(p.n){km+=p.km;trips++}if(q.n){km+=q.km;trips++}}return {km,trips}}
+function orderOf(n){const e=empByName(n);return e?e.order:999}
+function dayStats(d){
+  const all=[...(d.morning||[]),...(d.night||[])];
+  return {m:(d.morning||[]).length,n:(d.night||[]).length,ot:all.filter(r=>r.ot).length,ride:all.filter(r=>r.status==='ride').length,no:all.filter(r=>r.status==='no').length,total:all.length,back:all.filter(r=>r.back).length,backNeed:all.filter(r=>r.status!=='no').length};
+}
+
+/* ---------- render ---------- */
+function render(){
+  document.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected',t.dataset.tab===S.tab));
+  const ms=$('#monthSel');
+  ms.innerHTML=S.months.length?S.months.map(m=>`<option value="${m.id}" ${m.id===S.month?'selected':''}>${esc(m.label||monthLabel(m.id))}</option>`).join(''):'<option>— ยังไม่มีเดือน —</option>';
+  ms.disabled=!S.months.length;
+  $('#btnExport').disabled=!S.month||!Object.keys(S.days).length;
+  const main=$('#main');
+  let h='';
+  if(!S.loaded)h+=`<div class="banner">กำลังโหลดข้อมูล…</div>`;
+  else if(!db)h+=`<div class="banner warn">ยังไม่ได้เข้าสู่ระบบ</div>`;
+  if(S.pending)h+=pendingHtml();
+  if(S.loaded&&!S.months.length&&!S.pending){
+    h+=`<div class="empty"><h2>ยังไม่มีตารางรับส่ง</h2><ol class="steps" style="text-align:left;max-width:420px;margin:12px auto"><li>กด “นำเข้าตารางกะ” แล้วเลือกไฟล์ตารางกะรายเดือน (.xlsx)</li><li>ตรวจเดือน แล้วกดบันทึก — ระบบจัดคนขึ้นรถและลำดับรับให้ทุกวัน</li><li>แท็บ “พนักงาน”: ปักหมุดบ้านคนที่ยังไม่มีพิกัด</li></ol></div>`;
+  } else if(S.month){
+    h+= S.tab==='day'?dayView(): S.tab==='sum'?sumView(): empView();
+  }
+  main.innerHTML=h;
+  const sel=main.querySelector('.chip[aria-pressed="true"]');if(sel&&!render.scrolled){sel.scrollIntoView({inline:'center',block:'nearest'});render.scrolled=true}
+}
+
+function pendingHtml(){
+  const p=S.pending;const exists=S.months.some(m=>m.id===p.monthId);
+  const ppl=new Set();Object.values(p.days).forEach(d=>[...d.morning,...d.night].forEach(r=>ppl.add(r.name)));
+  if(p.kind==='shift'){const nm=p.people.filter(q=>{const e=(q.eid&&S.emps.find(x=>x.eid===q.eid))||empByName(q.name);return !(e&&e.lat!=null)&&!SEED.some(x=>x[0]===q.eid||x[1]===q.name)}).length;
+    return `<div class="banner" style="flex-direction:column;align-items:stretch"><div><b>ตารางกะ — ${p.people.length} คน</b> · เดือน <input type="month" id="p-month" value="${p.monthId}" style="min-height:40px">${p.guessed?' <span class="danger">หาเดือนในไฟล์ไม่เจอ — ตรวจเดือนให้ถูก</span>':''}</div>
+    <div class="hint">ระบบจะแยกคนกะเช้า (1, 1OT, D) / กะดึก (2, 2OT) ให้ทุกวัน · ตัดคนที่ตั้งว่าเดินทางเอง · จัดลำดับรับตามเส้นทางสั้นสุดให้${nm?` · <span class="danger">${nm} คนยังไม่มีพิกัดบ้าน (ปักหมุดได้ในแท็บพนักงานหลังบันทึก)</span>`:''}${exists?' · <span class="danger">จะเขียนทับเดือนนี้ที่มีอยู่</span>':''}</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end"><button class="ghost" data-act="cancelImport">ยกเลิก</button><button class="primary" data-act="confirmImport" style="min-height:44px">${exists?'เขียนทับและบันทึก':'บันทึกเดือนนี้'}</button></div></div>`}
+  return `<div class="banner"><div><b>พบข้อมูล ${esc(monthLabel(p.monthId))}</b> — ${Object.keys(p.days).length} วัน · ${ppl.size} คน${exists?` <span class="danger">· จะเขียนทับข้อมูลเดือนนี้ที่มีอยู่ (รวมสถานะขึ้น/ไม่ขึ้นที่บันทึกไว้)</span>`:''}</div>
+  <div style="display:flex;gap:8px"><button class="ghost" data-act="cancelImport">ยกเลิก</button><button class="primary" data-act="confirmImport">${exists?'เขียนทับและบันทึก':'บันทึกเดือนนี้'}</button></div></div>`;
+}
+
+function dayView(){
+  const keys=Object.keys(S.days).sort();
+  if(!keys.length)return `<div class="empty">ยังไม่มีข้อมูลรายวันของเดือนนี้</div>`;
+  const now=new Date();const tdKey=`${now.getFullYear()}-${pad(now.getMonth()+1)}`===S.month?pad(now.getDate()):null;
+  let h='<div class="strip" role="group" aria-label="เลือกวัน">';
+  for(const k of keys){const d=S.days[k];const dt=dateOf(k);const st=dayStats(d);const we=dt.getDay()===0||dt.getDay()===6;
+    h+=`<button class="chip ${we?'we':''} ${k===tdKey?'today':''}" aria-pressed="${k===S.day}" data-act="day" data-day="${k}" title="${esc(TH_D[dt.getDay()])} ${+k}">
+      <span class="wd">${TH_DS[dt.getDay()]}</span><span class="dn">${+k}</span><span class="cnt"><span title="กะเช้า">☀${st.m}</span><span title="กะดึก">☾${st.n}</span></span>${st.ot?'<span class="dot" title="มี OT"></span>':''}</button>`}
+  h+='</div>';
+  const d=S.days[S.day];if(!d)return h;
+  const dt=dateOf(S.day);const st=dayStats(d);const i=keys.indexOf(S.day);
+  h+=`<div class="dayhead"><div><h2>${TH_D[dt.getDay()]} ${+S.day} ${esc(monthLabel(S.month))}${S.day===tdKey?' <span class="pill ok" style="vertical-align:middle">วันนี้</span>':''}</h2>
+    <div class="pills" style="margin-top:6px"><span class="pill">รวม ${st.total} คน</span>${st.ot?`<span class="pill ot">OT ${st.ot}</span>`:''}<span class="pill ok">ขึ้นแล้ว ${st.ride}</span>${st.no?`<span class="pill bad">ไม่ขึ้น ${st.no}</span>`:''}${st.total-st.ride-st.no?`<span class="pill">ยังไม่ยืนยัน ${st.total-st.ride-st.no}</span>`:''}${st.backNeed?`<span class="pill ${st.back>=st.backNeed?'ok':''}">กลับ ${st.back}/${st.backNeed}</span>`:''}</div>
+    <button class="primary btn-form" data-act="form">🗎 ทำใบขอรถ</button></div>
+    <div style="display:flex;gap:6px"><button data-act="day" data-day="${keys[i-1]||''}" ${i<=0?'disabled':''} aria-label="วันก่อนหน้า">‹ ก่อนหน้า</button><button data-act="day" data-day="${keys[i+1]||''}" ${i>=keys.length-1?'disabled':''} aria-label="วันถัดไป">ถัดไป ›</button></div></div>`;
+  if(!S.mShift){const hr=new Date().getHours();S.mShift=(hr>=5&&hr<17)?'morning':'night'}
+  h+=`<div class="shift-switch" role="group" aria-label="เลือกกะ">${['morning','night'].map(s=>`<button class="${s} ${S.mShift===s?'on':''}" data-act="mshift" data-shift="${s}" aria-pressed="${S.mShift===s}">${s==='morning'?'☀':'☾'} ${SH[s].label} (${(d[s]||[]).length})</button>`).join('')}</div>`;
+  h+='<div class="shifts">'+['morning','night'].map(s=>shiftCard(d,s)).join('')+'</div>';
+  return h;
+}
+function navBtns(links,label){if(!links||!links.length)return '';
+  return links.map((u,i)=>`<a class="navbtn" href="${esc(u)}" target="_blank" rel="noopener">▶ ${label}${links.length>1?` ช่วง ${i+1}`:''}</a>`).join('')}
+function routeBar(dd,s){
+  const p=pickupLeg(dd,s),q=dropLeg(dd,s);let h='<div class="route">';
+  if(p.n){h+=`<div class="rleg"><div class="rl"><b>ขารับ</b> ออก ${min2hm(p.dep)} · ถึงคนแรก ${min2hm(p.eta.values().next().value)} · ถึง ${esc(S.route.endName)} ${min2hm(p.arrive)} · <b>${p.km.toFixed(1)} กม.</b>${p.mkt?` · <span class="mk">★ แวะตลาด ${p.mkt} นาที</span>`:''}</div>${navBtns(p.links,'นำทางขารับ')}</div>`}
+  else h+=`<div class="rleg"><div class="rl hint">ขารับ: ยังคำนวณไม่ได้${!rPts().A?' (ตั้งค่าจุดจอดรถก่อน)':''}</div></div>`;
+  if(q.none)h+=`<div class="rleg"><div class="rl hint">ขาส่ง ${s==='morning'?'(กะดึกเมื่อวาน)':''}: ไม่มีข้อมูลวันก่อนหน้า</div></div>`;
+  else if(q.n)h+=`<details class="rleg drop"><summary class="rl"><b>ขาส่ง</b> ${s==='morning'?'กะดึกเมื่อวาน':'กะเช้าวันนี้'} ${q.n} คน · ออก ${esc(S.route.endName)} ${min2hm(hm2min(s==='morning'?S.route.leaveM:S.route.leaveN))} · <b>${q.km.toFixed(1)} กม.</b></summary>
+    <ol class="dl">${q.order.map(r=>`<li>${esc(r.name)} <span class="hint">${esc(r.place||'')} · ${min2hm(q.eta.get(r.name))}</span></li>`).join('')}</ol>${navBtns(q.links,'นำทางขาส่ง')}</details>`;
+  const miss=(p.miss||0);if(miss)h+=`<div class="rl warn">⚠ ${miss} คนยังไม่มีพิกัดบ้าน — ไม่ได้อยู่ในเส้นทาง (ไปที่แท็บ “พนักงาน” แล้วกดแก้ไขเพื่อปักหมุด)</div>`;
+  return h+'</div>'}
+function shiftCard(d,s){
+  const list=d[s]||[];const p=list.length?pickupLeg(S.day,s):{n:0};
+  let h=`<section class="shift ${s} ${S.mShift&&S.mShift!==s?'m-hide':''}"><div class="shift-h"><h3>${SH[s].label}<span class="t">${SH[s].time} · ${list.length} คน${list.some(r=>r.status!=='no')?` · กลับ ${list.filter(r=>r.back).length}/${list.filter(r=>r.status!=='no').length}`:''}</span></h3>
+   <div class="btns"><button data-act="opt" data-shift="${s}" title="เรียงลำดับรับตามเส้นทางสั้นที่สุด">⟲ จัดลำดับ</button><button data-act="add" data-shift="${s}">+ เพิ่มคน</button></div></div>${routeBar(S.day,s)}<ol class="riders">`;
+  if(!list.length)h+=`<li class="empty-row">ไม่มีคนในกะนี้ — กด “+ เพิ่มคน”</li>`;
+  list.forEach((r,i)=>{const et=p.n&&p.eta.get(r.name);const nll=r.status!=='no'&&!llOf(r);
+    h+=`<li class="rider st-${r.status||'none'} ${r.back?'back-on':''}"><span class="num">${i+1}</span>
+      <div class="who"><b>${esc(r.name)}</b>${r.team?`<span class="team">${esc(r.team)}</span>`:''}${r.ot?'<span class="otb">OT</span>':''}${et?`<span class="eta">${min2hm(et)}</span>`:''}${nll?'<span class="nopin">ไม่มีพิกัด</span>':''}
+      <div class="meta">${esc(r.place||'—')}${r.phone?` · <a href="tel:${esc(r.phone.replace(/[^\d+]/g,''))}">${esc(r.phone)}</a>`:''}${r.note?` · <i>${esc(r.note)}</i>`:''}</div></div>
+      <div class="acts">
+        <span class="segrow"><span class="seg"><button class="${r.status==='ride'?'on-ride':''}" data-act="st" data-v="ride" data-shift="${s}" data-i="${i}" aria-pressed="${r.status==='ride'}">ขึ้น</button><button class="${r.status==='no'?'on-no':''}" data-act="st" data-v="no" data-shift="${s}" data-i="${i}" aria-pressed="${r.status==='no'}">ไม่ขึ้น</button>${r.status?`<button data-act="stClear" data-shift="${s}" data-i="${i}" aria-label="ล้างสถานะ" title="ล้างสถานะ">×</button>`:''}</span><button class="backbtn ${r.back?'on':''}" data-act="back" data-shift="${s}" data-i="${i}" aria-pressed="${!!r.back}" title="ติ๊กเมื่อขากลับขึ้นรถแล้ว">${r.back?'✓ กลับ':'กลับ'}</button></span>
+        <button class="otbtn ${r.ot?'on':''}" data-act="ot" data-shift="${s}" data-i="${i}" aria-pressed="${!!r.ot}">OT</button>
+        <button data-act="mv" data-d="-1" data-shift="${s}" data-i="${i}" ${i===0?'disabled':''} aria-label="เลื่อนขึ้น">↑</button>
+        <button data-act="mv" data-d="1" data-shift="${s}" data-i="${i}" ${i===list.length-1?'disabled':''} aria-label="เลื่อนลง">↓</button>
+        <button data-act="edit" data-shift="${s}" data-i="${i}">แก้ไข</button>
+      </div></li>`});
+  return h+'</ol></section>';
+}
+
+function monthSummary(){
+  const per={};const days=[];
+  for(const k of Object.keys(S.days).sort()){const d=S.days[k];const st=dayStats(d);days.push({k,...st});
+    for(const s of ['morning','night'])for(const r of d[s]||[]){
+      const p=per[r.name]||(per[r.name]={name:r.name,team:r.team,m:0,n:0,ride:0,no:0,ot:0,otDays:[]});
+      p[s==='morning'?'m':'n']++; if(r.status==='ride')p.ride++; if(r.status==='no')p.no++; if(r.ot){p.ot++;p.otDays.push(+k)}
+    }}
+  return {per:Object.values(per).sort((a,b)=>b.ot-a.ot||orderOf(a.name)-orderOf(b.name)),days};
+}
+function sumView(){
+  const {per,days}=monthSummary();
+  const tot=days.reduce((a,d)=>({t:a.t+d.total,ot:a.ot+d.ot,ride:a.ride+d.ride,no:a.no+d.no}),{t:0,ot:0,ride:0,no:0});
+  const maxOt=Math.max(1,...per.map(p=>p.ot));
+  const mr=monthRoutes();
+  let h=`<div class="tiles"><div class="tile"><div class="k">ระยะทางรวมทั้งเดือน</div><div class="v">${Math.round(mr.km).toLocaleString()} <small style="font-size:14px">กม.</small></div></div>
+   <div class="tile"><div class="k">เที่ยวรถ (รับ+ส่ง)</div><div class="v">${mr.trips}</div></div>
+   <div class="tile"><div class="k">คน-เที่ยวทั้งเดือน</div><div class="v">${tot.t}</div></div>
+   <div class="tile"><div class="k">OT ทั้งเดือน</div><div class="v">${tot.ot}</div></div>
+   <div class="tile"><div class="k">ยืนยันขึ้นรถ</div><div class="v">${tot.ride}</div></div>
+   <div class="tile"><div class="k">ไม่ขึ้นรถ</div><div class="v">${tot.no}</div></div></div>`;
+  h+=`<div class="card"><div class="card-h"><h3>รายคน — ${esc(monthLabel(S.month))}</h3><span class="hint">เรียงตามจำนวน OT</span></div><div class="scroll ptable"><table>
+   <thead><tr><th>ชื่อ-สกุล</th><th>ทีม</th><th class="n">กะเช้า</th><th class="n">กะดึก</th><th class="n">ขึ้น</th><th class="n">ไม่ขึ้น</th><th class="n">OT</th><th></th><th>วันที่ทำ OT</th></tr></thead><tbody>`;
+  for(const p of per)h+=`<tr><td>${esc(p.name)}</td><td>${esc(p.team)}</td><td class="n">${p.m}</td><td class="n">${p.n}</td><td class="n">${p.ride}</td><td class="n ${p.no?'danger':''}">${p.no}</td><td class="n"><b>${p.ot}</b></td><td style="width:120px"><div class="bar"><i style="width:${p.ot/maxOt*100}%"></i></div></td><td>${p.otDays.join(', ')||'—'}</td></tr>`;
+  h+=`</tbody></table></div><div class="pcards">${per.map(p=>`<div class="pcard"><div><span class="nm">${esc(p.name)}</span>${p.team?`<span class="team">${esc(p.team)}</span>`:''}</div><div class="otn">${p.ot}<small>OT</small></div>
+    <div class="st">เช้า ${p.m} · ดึก ${p.n} · ขึ้น ${p.ride}${p.no?` · <span class="danger">ไม่ขึ้น ${p.no}</span>`:''}${p.otDays.length?` · OT วันที่ ${p.otDays.join(', ')}`:''}</div></div>`).join('')}</div></div>`;
+  h+=`<div class="card"><div class="card-h"><h3>รายวัน</h3></div><div class="scroll"><table><thead><tr><th>วันที่</th><th class="n">กะเช้า</th><th class="n">กะดึก</th><th class="n">OT</th><th class="n">ระยะ (กม.)</th><th class="n">ไม่ขึ้น</th></tr></thead><tbody>`;
+  for(const d of days){const dt=dateOf(d.k);h+=`<tr><td><button class="ghost" style="min-height:28px;padding:2px 6px" data-act="goto" data-day="${d.k}">${TH_DS[dt.getDay()]} ${+d.k}</button></td><td class="n">${d.m}</td><td class="n">${d.n}</td><td class="n">${d.ot||''}</td><td class="n">${(()=>{let km=0;for(const s of ['morning','night']){const a=pickupLeg(d.k,s),b=dropLeg(d.k,s);km+=(a.km||0)+(b.km||0)}return km?km.toFixed(1):''})()}</td><td class="n ${d.no?'danger':''}">${d.no||''}</td></tr>`}
+  return h+`</tbody></table></div></div>`;
+}
+function empView(){
+  let h=`<div class="card"><div class="card-h"><h3>รายชื่อพนักงาน (${S.emps.length})</h3><div style="display:flex;gap:8px;align-items:center"><button class="primary" data-act="empAdd">+ เพิ่มพนักงาน</button></div></div><div class="scroll ptable"><table>
+  <thead><tr><th>เลขประจำตัว</th><th>ชื่อ-สกุล</th><th>ทีม/กะ</th><th>เบอร์โทร</th><th>จุดรับ-ส่ง</th><th>พิกัดบ้าน</th><th>ขึ้นรถ</th><th></th></tr></thead><tbody>`;
+  const nrT={'':'ขึ้นรถ',morning:'ไปเองกะเช้า',night:'ไปเองกะดึก',all:'ไปเองทุกกะ'};
+  const pin=e=>e.lat!=null&&e.lat!==''?`<span class="pin-ok">✓ มีพิกัด</span>`:`<span class="pin-no">ยังไม่มี</span>`;
+  S.emps.forEach((e,i)=>{h+=`<tr><td>${esc(e.eid||'')}</td><td>${esc(e.name)}</td><td>${esc(e.team)}</td><td>${esc(e.phone)}</td><td>${esc(e.place)}</td><td>${pin(e)}</td><td>${nrT[e.noride||'']}${e.noride&&(e.noFrom||e.noTo)?` (${e.noFrom||1}–${e.noTo||31})`:''}</td>
+   <td style="text-align:right"><button data-act="empEdit" data-id="${e.id}">แก้ไข</button></td></tr>`});
+  if(!S.emps.length)h+=`<tr><td colspan="8" class="hint" style="padding:20px">ยังไม่มีรายชื่อ — นำเข้าตารางกะแล้วรายชื่อจะถูกเพิ่มให้อัตโนมัติ</td></tr>`;
+  h+=`</tbody></table></div><div class="pcards">${S.emps.map(e=>`<div class="pcard"><div><span class="nm">${esc(e.name)}</span>${e.team?`<span class="team">${esc(e.team)}</span>`:''}</div><div><button data-act="empEdit" data-id="${e.id}" style="min-height:40px">แก้ไข</button></div>
+    <div class="st">${esc(e.place||'—')} · ${esc(e.phone||'')} · ${pin(e)}${e.noride?` · ${nrT[e.noride]}`:''}</div></div>`).join('')}</div></div>`;
+  return h+`<p class="hint">ปักหมุดบ้าน: เปิด Google Maps → กดค้างที่บ้านพนักงาน → แตะตัวเลขพิกัดด้านบนเพื่อคัดลอก → กลับมากด “แก้ไข” แล้ววาง</p>`;
+}
+
+/* ---------- sheet (editor) ---------- */
+function closeSheet(){$('#sheetHost').innerHTML=''}
+function openSheet(html,onMount){
+  $('#sheetHost').innerHTML=`<div class="scrim" data-act="scrim"><div class="sheet" role="dialog" aria-modal="true">${html}</div></div>`;
+  onMount&&onMount($('#sheetHost .sheet'));
+  const f=$('#sheetHost input, #sheetHost select');f&&f.focus();
+}
+function riderForm(r){return `
+  <div class="field"><label for="f-name">ชื่อ-สกุล</label><input id="f-name" list="emplist" value="${esc(r.name)}" autocomplete="off"></div>
+  <datalist id="emplist">${S.emps.map(e=>`<option value="${esc(e.name)}">`).join('')}</datalist>
+  <div class="row2"><div class="field"><label for="f-team">ทีม/กะ</label><input id="f-team" value="${esc(r.team)}"></div>
+  <div class="field"><label for="f-phone">เบอร์โทร</label><input id="f-phone" value="${esc(r.phone)}" inputmode="tel"></div></div>
+  <div class="field"><label for="f-place">จุดรับ-ส่ง</label><input id="f-place" value="${esc(r.place)}"></div>`}
+function readRider(sh){const v=id=>sh.querySelector(id)?.value.trim()||'';return {name:v('#f-name'),team:v('#f-team'),phone:v('#f-phone'),place:v('#f-place')}}
+function fillFromEmp(sh){sh.querySelector('#f-name').addEventListener('change',e=>{const m=empByName(e.target.value.trim());if(m){['team','phone','place'].forEach(k=>sh.querySelector('#f-'+k).value=m[k]||'')}})}
+
+function editRider(s,i){
+  const r=S.days[S.day][s][i];
+  openSheet(`<h3>แก้ไข — ${SH[s].label} วันที่ ${+S.day}</h3>${riderForm(r)}
+   <div class="row2"><div class="field"><label for="f-shift">กะ</label><select id="f-shift"><option value="morning" ${s==='morning'?'selected':''}>กะเช้า</option><option value="night" ${s==='night'?'selected':''}>กะดึก</option></select></div>
+   <div class="field"><label for="f-note">หมายเหตุ</label><input id="f-note" value="${esc(r.note)}" placeholder="เช่น ลา, ไปเอง"></div></div>
+   <div class="foot"><button class="danger" id="b-del">ลบออกจากวันนี้</button><div><button class="ghost" data-act="close">ยกเลิก</button><button class="primary" id="b-save">บันทึก</button></div></div>`,sh=>{
+    fillFromEmp(sh);
+    sh.querySelector('#b-del').onclick=e=>{const b=e.currentTarget;if(!b.classList.contains('armed')){b.classList.add('armed');b.textContent='กดอีกครั้งเพื่อลบ';return}
+      S.days[S.day][s].splice(i,1);closeSheet();saveDay(S.day);toast('ลบแล้ว')};
+    sh.querySelector('#b-save').onclick=()=>{const nv=readRider(sh);if(!nv.name){toast('กรุณาใส่ชื่อ');return}
+      const ns=sh.querySelector('#f-shift').value;const note=sh.querySelector('#f-note').value.trim();
+      const obj={...r,...nv,note};const d=S.days[S.day];
+      if(ns===s)d[s][i]=obj;else{d[s].splice(i,1);d[ns].push(obj)}
+      closeSheet();saveDay(S.day);toast('บันทึกแล้ว')};
+  });
+}
+function addRider(s){
+  const d=S.days[S.day];const inDay=new Set([...d.morning,...d.night].map(r=>r.name));
+  const opts=S.emps.filter(e=>!inDay.has(e.name));
+  openSheet(`<h3>เพิ่มคน — ${SH[s].label} วันที่ ${+S.day}</h3>
+   <div class="field"><label for="f-pick">เลือกจากรายชื่อ</label><select id="f-pick"><option value="">— พิมพ์ชื่อใหม่ด้านล่าง —</option>${opts.map(e=>`<option value="${esc(e.name)}">${esc(e.name)} · ${esc(e.place)}</option>`).join('')}</select></div>
+   ${riderForm({name:'',team:'',phone:'',place:''})}
+   <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="f-ot" style="min-height:auto"> ทำ OT</label>
+   <div class="foot"><span></span><div><button class="ghost" data-act="close">ยกเลิก</button><button class="primary" id="b-save">เพิ่ม</button></div></div>`,sh=>{
+    fillFromEmp(sh);
+    sh.querySelector('#f-pick').onchange=e=>{const m=empByName(e.target.value);if(m){['name','team','phone','place'].forEach(k=>sh.querySelector('#f-'+k).value=m[k]||'')}};
+    sh.querySelector('#b-save').onclick=()=>{const nv=readRider(sh);if(!nv.name){toast('กรุณาเลือกหรือใส่ชื่อ');return}
+      const em=empByName(nv.name);d[s].push({...nv,eid:em?.eid||'',ot:sh.querySelector('#f-ot').checked,status:'',note:''});
+      d[s]=optimizeList(d[s]);
+      if(!empByName(nv.name)){const e={id:empKey(nv.name),...nv,order:S.emps.length+1};S.emps.push(e);saveEmp(e)}
+      closeSheet();saveDay(S.day);toast('เพิ่มแล้ว')};
+  });
+}
+function editEmp(id){
+  const e=id?S.emps.find(x=>x.id===id):{name:'',team:'',phone:'',place:'',eid:'',lat:null,lng:null,noride:''};
+  const llTxt=e.lat!=null&&e.lat!==''?`${e.lat}, ${e.lng}`:'';
+  openSheet(`<h3>${id?'แก้ไขพนักงาน':'เพิ่มพนักงาน'}</h3>${riderForm(e)}
+   <div class="field"><label for="f-eid">เลขประจำตัว</label><input id="f-eid" value="${esc(e.eid||'')}" inputmode="numeric"></div>
+   <div class="field"><label for="f-ll">พิกัดบ้าน (วางตัวเลขพิกัด หรือลิงก์ Google Maps แบบเต็ม)</label><input id="f-ll" value="${esc(llTxt)}" placeholder="เช่น 12.6730, 101.2575"><span class="hint" id="f-llh"></span>
+    <div style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" id="f-paste">วางจากคลิปบอร์ด</button><a class="navbtn" id="f-see" target="_blank" rel="noopener" style="min-height:36px;background:var(--accent)">ดูบนแผนที่</a></div></div>
+   <div class="row2"><div class="field"><label for="f-nr">ขึ้นรถ</label><select id="f-nr">${[['','ขึ้นรถปกติ'],['morning','เดินทางเอง เฉพาะกะเช้า'],['night','เดินทางเอง เฉพาะกะดึก'],['all','เดินทางเอง ทุกกะ']].map(([v,t])=>`<option value="${v}" ${(e.noride||'')===v?'selected':''}>${t}</option>`).join('')}</select></div>
+   <div class="field"><label>ช่วงวันที่ (เว้นว่าง = ทั้งเดือน)</label><div style="display:flex;gap:6px"><input id="f-nf" type="number" min="1" max="31" placeholder="ตั้งแต่" value="${esc(e.noFrom||'')}" style="width:50%"><input id="f-nt" type="number" min="1" max="31" placeholder="ถึง" value="${esc(e.noTo||'')}" style="width:50%"></div></div></div>
+   ${id?`<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="f-prop" checked style="min-height:auto"> อัปเดตทุกวันใน ${esc(monthLabel(S.month))} ด้วย</label>`:''}
+   <div class="foot">${id?'<button class="danger" id="b-del">ลบพนักงาน</button>':'<span></span>'}<div><button class="ghost" data-act="close">ยกเลิก</button><button class="primary" id="b-save">บันทึก</button></div></div>`,sh=>{
+    const llIn=sh.querySelector('#f-ll'),llH=sh.querySelector('#f-llh'),see=sh.querySelector('#f-see');
+    const chk=()=>{const v=llIn.value.trim();const ll=parseLL(v);if(!v){llH.textContent='ยังไม่มีพิกัด — คนนี้จะไม่อยู่ในการคำนวณเส้นทาง';see.style.display='none';return}
+      if(!ll){llH.innerHTML='<span class="danger">อ่านพิกัดไม่ได้ — ลิงก์แบบย่อ (maps.app.goo.gl) ใช้ไม่ได้ ให้คัดลอกตัวเลขพิกัดแทน</span>';see.style.display='none';return}
+      llH.textContent=`✓ ${ll[0].toFixed(6)}, ${ll[1].toFixed(6)}`;see.href=`https://www.google.com/maps/search/?api=1&query=${ll[0]},${ll[1]}`;see.style.display=''};
+    llIn.oninput=chk;chk();
+    sh.querySelector('#f-paste').onclick=async()=>{try{llIn.value=await navigator.clipboard.readText();chk()}catch{toast('วางอัตโนมัติไม่ได้ — กดค้างที่ช่องแล้วเลือก “วาง”')}};
+    const del=sh.querySelector('#b-del');
+    if(del)del.onclick=ev=>{const b=ev.currentTarget;if(!b.classList.contains('armed')){b.classList.add('armed');b.textContent='กดอีกครั้งเพื่อลบ';return}
+      S.emps=S.emps.filter(x=>x.id!==id);delDoc(`employees/${id}`);closeSheet();render();toast('ลบแล้ว (ตารางรายวันไม่เปลี่ยน)')};
+    sh.querySelector('#b-save').onclick=()=>{const nv=readRider(sh);if(!nv.name){toast('กรุณาใส่ชื่อ');return}
+      const lv=llIn.value.trim(),ll=parseLL(lv);if(lv&&!ll){toast('พิกัดไม่ถูกต้อง');return}
+      Object.assign(nv,{eid:sh.querySelector('#f-eid').value.trim(),lat:ll?ll[0]:null,lng:ll?ll[1]:null,noride:sh.querySelector('#f-nr').value,noFrom:sh.querySelector('#f-nf').value.trim(),noTo:sh.querySelector('#f-nt').value.trim()});
+      if(id){const old=e.name;Object.assign(e,nv);saveEmp(e);
+        if(sh.querySelector('#f-prop')?.checked){for(const k of Object.keys(S.days)){let ch=false;for(const s of ['morning','night'])for(const r of S.days[k][s])if(r.name===old){Object.assign(r,{name:nv.name,team:nv.team,phone:nv.phone,place:nv.place,eid:nv.eid});ch=true}if(ch)saveDoc(`months/${S.month}/days/${k}`,S.days[k])}}
+      } else {const ne={id:empKey(nv.name),...nv,order:S.emps.length+1};S.emps.push(ne);saveEmp(ne)}
+      closeSheet();render();toast('บันทึกแล้ว')};
+  });
+}
+function newMonth(){
+  const n=new Date();n.setMonth(n.getMonth()+1);
+  openSheet(`<h3>สร้างเดือนใหม่</h3><div class="field"><label for="f-month">เดือน</label><input type="month" id="f-month" value="${n.getFullYear()}-${pad(n.getMonth()+1)}"></div>
+   <div class="field"><label for="f-copy">เริ่มต้นจาก</label><select id="f-copy"><option value="">ตารางว่าง</option>${S.month?`<option value="week">ทำซ้ำตามวันในสัปดาห์จาก ${esc(monthLabel(S.month))} (สัปดาห์แรก)</option>`:''}</select></div>
+   <p class="hint">ถ้ามีไฟล์ Excel ของเดือนนั้นแล้ว ใช้ “นำเข้า Excel” แทนจะครบกว่า</p>
+   <div class="foot"><span></span><div><button class="ghost" data-act="close">ยกเลิก</button><button class="primary" id="b-save">สร้าง</button></div></div>`,sh=>{
+    sh.querySelector('#b-save').onclick=async()=>{const v=sh.querySelector('#f-month').value;if(!/^\d{4}-\d{2}$/.test(v)){toast('เลือกเดือนก่อน');return}
+      if(S.months.some(m=>m.id===v)){toast('มีเดือนนี้อยู่แล้ว');return}
+      const copy=sh.querySelector('#f-copy').value;const tmpl={};
+      if(copy==='week'){for(const k of Object.keys(S.days).sort()){const wd=dateOf(k).getDay();if(!tmpl[wd])tmpl[wd]=S.days[k]}}
+      const [y,m]=v.split('-').map(Number);const nd=new Date(y,m,0).getDate();const days={};
+      for(let i=1;i<=nd;i++){const wd=new Date(y,m-1,i).getDay();const t=tmpl[wd];
+        const cl=a=>(a||[]).map(r=>({...r,status:'',back:false,note:''}));days[pad(i)]={d:i,weekday:TH_D[wd],morning:t?cl(t.morning):[],night:t?cl(t.night):[]}}
+      closeSheet();await writeMonth(v,days);toast('สร้าง '+monthLabel(v)+' แล้ว')};
+  });
+}
+
+/* ---------- import / export ---------- */
+// ตารางกะรายเดือน: แถวหัวมี "เลขประจำตัว"/"ชื่อ" + แถวเลขวัน 1..31 · รหัส 1/2/1OT/2OT/H/D/DOT
+const EN_M=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+function findMonth(rows,fname){
+  const txt=[fname||'',...rows.slice(0,6).flat().filter(v=>typeof v==='string')].join(' ');
+  for(let i=0;i<12;i++){const m=txt.match(new RegExp(TH_M[i]+'\\s*(\\d{4})'));if(m){let y=+m[1];if(y>2400)y-=543;return `${y}-${pad(i+1)}`}}
+  const e=txt.match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[\s\-_]*(\d{2,4})/i);
+  if(e){let y=+e[2];if(y<100)y+=2000;return `${y}-${pad(EN_M.indexOf(e[1].toLowerCase())+1)}`}
+  return null}
+function parseShiftTable(rows,fname,forceMonth){
+  const hi=rows.findIndex(r=>r&&r.some(v=>typeof v==='string'&&/เลขประจำตัว|รหัสพนักงาน/.test(v)));if(hi<0)return null;
+  const H=rows[hi].map(v=>str(v));const col=re=>H.findIndex(v=>re.test(v));
+  const cId=col(/เลขประจำตัว|รหัสพนักงาน/),cName=col(/ชื่อ/),cTeam=col(/ทีม|กะ/),cPhone=col(/เบอร์|โทร/),cPlace=col(/สถานที่|จุดรับ/);
+  // หาแถวเลขวัน (แถวหัวเองหรือแถวถัดไป)
+  let dayCols={};for(const r of [rows[hi+1]||[],rows[hi]]){const m={};r.forEach((v,c)=>{const n=typeof v==='number'?v:/^\d{1,2}$/.test(str(v))?+str(v):null;if(n>=1&&n<=31&&c!==cId)m[c]=n});if(Object.keys(m).length>=28){dayCols=m;break}}
+  if(!Object.keys(dayCols).length||cName<0)return null;
+  const monthId=forceMonth||findMonth(rows,fname);const days={};const people=[];
+  const y=monthId?+monthId.slice(0,4):new Date().getFullYear(),mo=monthId?+monthId.slice(5):new Date().getMonth()+1;const nd=new Date(y,mo,0).getDate();
+  for(let i=1;i<=nd;i++)days[pad(i)]={d:i,weekday:TH_D[new Date(y,mo-1,i).getDay()],morning:[],night:[]};
+  for(const r of rows.slice(hi+1)){const id=cId>=0?str(r[cId]):'';const name=str(r[cName]);
+    if(!name||(cId>=0&&!/^\d{4,}$/.test(id)))continue;
+    const p={eid:id,name,team:cTeam>=0?str(r[cTeam]):'',phone:cPhone>=0?str(r[cPhone]):'',place:cPlace>=0?str(r[cPlace]):'',codes:{}};people.push(p);
+    for(const [c,n] of Object.entries(dayCols)){if(n>nd)continue;const code=str(r[c]).toUpperCase().replace(/\s/g,'');if(!code)continue;p.codes[n]=code;
+      const sh=MORNING_C.has(code)?'morning':NIGHT_C.has(code)?'night':null;if(!sh)continue;
+      days[pad(n)][sh].push({eid:id,name,team:p.team,phone:p.phone,place:p.place,code,ot:/OT$/.test(code),status:'',note:''})}}
+  if(!people.length)return null;
+  return {kind:'shift',monthId:monthId||curMonthId(),guessed:!monthId,days,people,rows,fname};
+}
+function noRideHit(e,sh,day){if(!e||!e.noride)return false;if(e.noride!=='all'&&e.noride!==sh)return false;
+  if(e.noFrom&&day<+e.noFrom)return false;if(e.noTo&&day>+e.noTo)return false;return true}
+function parseWorkbook(wb,fname){
+  const ws=wb.Sheets[wb.SheetNames[0]];const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
+  const st=parseShiftTable(rows,fname);if(st)return st;
+  const days={};let monthId=null;
+  for(const off of [0,6]){let cur=null,shift=null;
+    for(const r of rows){const v=r[off];
+      if(typeof v==='string'){const t=v.trim();
+        const m=t.match(/^(\S+)\s+(\d{1,2})\s+(\S+)\s+(\d{4})$/);
+        if(m&&TH_M.includes(m[3])){let y=+m[4];if(y>2400)y-=543;monthId=`${y}-${pad(TH_M.indexOf(m[3])+1)}`;cur=pad(+m[2]);days[cur]=days[cur]||{d:+m[2],weekday:m[1],morning:[],night:[]};shift=null;continue}
+        if(t.startsWith('กะเช้า')){shift='morning';continue}
+        if(t.startsWith('กะดึก')){shift='night';continue}
+      } else if(typeof v==='number'&&cur&&shift){
+        const raw=str(r[off+1]);if(!raw)continue;
+        const ot=/★\s*OT/i.test(raw);const status=/✗/.test(raw)?'no':/✓/.test(raw)?'ride':'';
+        const name=raw.replace(/★\s*OT/ig,'').replace(/✓\s*ขึ้น|✗\s*ไม่ขึ้น/g,'').trim();
+        days[cur][shift].push({name,team:str(r[off+2]),phone:str(r[off+3]),place:str(r[off+4]),ot,status,note:''});
+      }}}
+  return {monthId,days};
+}
+// ตารางกะ → อัปเดตรายชื่อพนักงาน (เลขประจำตัว/เบอร์/จุดรับ) + ตัดคนที่เดินทางเอง + จัดลำดับทุกวัน
+function finishShiftImport(p){
+  for(const q of p.people){let e=(q.eid&&S.emps.find(x=>x.eid===q.eid))||empByName(q.name);
+    if(!e){e={id:empKey(q.eid||q.name),eid:q.eid,name:q.name,team:q.team,phone:q.phone,place:q.place,order:S.emps.length+1,lat:null,lng:null};seedEmp(e);S.emps.push(e)}
+    else{Object.assign(e,{eid:q.eid||e.eid,name:q.name,team:q.team||e.team,phone:q.phone||e.phone,place:q.place||e.place});seedEmp(e)}
+    saveEmp(e)}
+  for(const [k,d] of Object.entries(p.days)){for(const s of ['morning','night'])d[s]=d[s].filter(r=>!noRideHit(empOf(r),s,+k))}
+  const keep=S.month;S.month=p.monthId;for(const k of Object.keys(p.days)){const sv=S.days;S.days=p.days;optimizeDay(k);S.days=sv}S.month=keep;
+}
+async function writeMonth(id,days){
+  // upsert employees first
+  for(const d of Object.values(days))for(const s of ['morning','night'])d[s].forEach((r,i)=>{
+    if(!empOf(r)){const e={id:empKey(r.name),eid:r.eid||'',name:r.name,team:r.team,phone:r.phone,place:r.place,order:S.emps.length+1,lat:null,lng:null};seedEmp(e);S.emps.push(e);saveEmp(e)}});
+  if(!S.months.some(m=>m.id===id))S.months.push({id,label:monthLabel(id)});
+  S.months.sort((a,b)=>b.id.localeCompare(a.id));
+  await saveDoc(`months/${id}`,{label:monthLabel(id),updatedAt:new Date().toISOString()});
+  selectMonth(id);S.days=days;pickDay();render.scrolled=false;render();
+  for(const [k,d] of Object.entries(days))saveDoc(`months/${id}/days/${k}`,d);
+}
+async function onFile(file){
+  if(!window.XLSX){toast('โหลดตัวอ่าน Excel ไม่สำเร็จ ลองรีเฟรช');return}
+  try{const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});const p=parseWorkbook(wb,file.name);
+    if(!p.monthId||!Object.keys(p.days).length){toast('ไม่พบตารางในไฟล์นี้ — ใช้ได้ทั้งไฟล์ตารางกะรายเดือน (มีคอลัมน์เลขประจำตัว + วันที่ 1–31) และไฟล์ตารางรับส่ง');return}
+    S.pending=p;S.tab='day';render();window.scrollTo({top:0});
+  }catch(e){toast('อ่านไฟล์ไม่ได้: '+e.message)}
+}
+function buildWorkbook(){
+  const wb=XLSX.utils.book_new();const lbl=monthLabel(S.month);const keys=Object.keys(S.days).sort();
+  const mark=r=>r.name+(r.ot?'   ★OT':'')+(r.status==='ride'?'  ✓ขึ้น':r.status==='no'?'  ✗ไม่ขึ้น':'');
+  const block=k=>{const d=S.days[k];const dt=dateOf(k);const out=[[`${TH_D[dt.getDay()]}  ${+k} ${lbl}`,null,null,null,null]];let hdr=false;
+    for(const s of ['morning','night']){const L=d[s]||[];if(!L.length)continue;out.push([`${SH[s].label}  ${SH[s].xl}   (${L.length} คน)`,null,null,null,null]);
+      if(!hdr){out.push(['รับคนที่','ชื่อ-สกุล','ทีม/กะ','เบอร์โทร','จุดรับ-ส่ง']);hdr=true}
+      L.forEach((r,i)=>out.push([i+1,mark(r),r.team,r.phone,r.place]))}
+    return out};
+  const aoa=[[`ตารางรับ-ส่งพนักงาน ${lbl}   (ลำดับรับ: ใกล้ → ไกล)`]];
+  for(let i=0;i<keys.length;i+=2){const L=block(keys[i]);const R=keys[i+1]?block(keys[i+1]):[];const n=Math.max(L.length,R.length);
+    for(let j=0;j<n;j++)aoa.push([...(L[j]||[null,null,null,null,null]),null,...(R[j]||[])])}
+  const ws1=XLSX.utils.aoa_to_sheet(aoa);ws1['!cols']=[{wch:8},{wch:34},{wch:12},{wch:13},{wch:32},{wch:3},{wch:8},{wch:34},{wch:12},{wch:13},{wch:32}];
+  XLSX.utils.book_append_sheet(wb,ws1,'รายวัน');
+  const list=[['วันที่','วัน','กะ','ลำดับ','ชื่อ-สกุล','ทีม/กะ','เบอร์โทร','จุดรับ-ส่ง','OT','สถานะ','กลับ','หมายเหตุ']];
+  for(const k of keys)for(const s of ['morning','night'])(S.days[k][s]||[]).forEach((r,i)=>list.push([+k,TH_D[dateOf(k).getDay()],SH[s].label,i+1,r.name,r.team,r.phone,r.place,r.ot?'OT':'',r.status==='ride'?'ขึ้น':r.status==='no'?'ไม่ขึ้น':'',r.back?'✓':'',r.note||'']));
+  const ws2=XLSX.utils.aoa_to_sheet(list);ws2['!cols']=[{wch:6},{wch:10},{wch:8},{wch:6},{wch:30},{wch:12},{wch:13},{wch:30},{wch:5},{wch:8},{wch:6},{wch:20}];
+  XLSX.utils.book_append_sheet(wb,ws2,'รายการ');
+  const {per}=monthSummary();const sm=[['ชื่อ-สกุล','ทีม/กะ','กะเช้า','กะดึก','ขึ้น','ไม่ขึ้น','OT (ครั้ง)','วันที่ทำ OT']];
+  per.forEach(p=>sm.push([p.name,p.team,p.m,p.n,p.ride,p.no,p.ot,p.otDays.join(', ')]));
+  const ws3=XLSX.utils.aoa_to_sheet(sm);ws3['!cols']=[{wch:30},{wch:12},{wch:8},{wch:8},{wch:6},{wch:8},{wch:10},{wch:40}];
+  XLSX.utils.book_append_sheet(wb,ws3,'สรุป OT');
+  return wb;
+}
+async function doExport(){
+  if(!window.XLSX){toast('โหลดตัวสร้าง Excel ไม่สำเร็จ');return}
+  if(!dl){toast('หน้านี้ดาวน์โหลดไฟล์ไม่ได้ในมุมมองนี้');return}
+  const [y,m]=S.month.split('-');const data=XLSX.write(buildWorkbook(),{bookType:'xlsx',type:'array'});
+  try{await dl.save({filename:`ตารางรับส่ง_${TH_M[+m-1]}${y}.xlsx`,data:new Uint8Array(data)});toast('ส่งออกแล้ว')}
+  catch(e){if(e?.code!=='declined')toast('ส่งออกไม่สำเร็จ: '+(e?.message||e?.code))}
+}
+
+/* ---------- ส่งไปจอรถ (ESP32-2432S024C) ---------- */
+async function doVanExport(){
+  if(!S.month||!Object.keys(S.days).length){toast('ยังไม่มีข้อมูลเดือนนี้');return}
+  if(!dl){toast('หน้านี้ดาวน์โหลดไฟล์ไม่ได้ในมุมมองนี้');return}
+  const days={};
+  for(const k of Object.keys(S.days).sort()){const d=S.days[k];
+    const m=a=>(a||[]).map(r=>({name:r.name,phone:r.phone||'',place:r.place||'',team:r.team||'',ot:!!r.ot,status:r.status||'',back:!!r.back}));
+    days[k]={morning:m(d.morning),night:m(d.night)}}
+  const json=JSON.stringify({v:1,month:S.month,label:monthLabel(S.month),exported:new Date().toISOString(),days});
+  try{await dl.save({filename:`tpac_van_${S.month}.json`,data:new Blob([json],{type:'application/json'})});toast('บันทึกแล้ว — ต่อ WiFi TPAC-VAN แล้วเปิด 192.168.4.1 เพื่ออัปโหลดเข้าจอ')}
+  catch(e){if(e?.code!=='declined')toast('ส่งไม่สำเร็จ: '+(e?.message||e?.code))}
+}
+
+
+/* ---------- จอรถ: ซิงก์ผ่าน Supabase ----------
+   ข้อมูลรายวันอยู่ในฐานข้อมูลอยู่แล้ว → จอดึงเองด้วย device_pull
+   จอส่งสถานะที่ติ๊ก → van_status → แอปนี้ดึงมารวมทุก 1 นาที (vansync/YYYY-MM เก็บว่ารวมถึงรอบไหนแล้ว) */
+const VAN={auto:false,state:'off',msg:'',lastPull:null,devAt:null,busy:false,applied:{},rev:0,syncMonth:null,pullI:null,devices:[]};
+function curMonthId(){const n=new Date();return `${n.getFullYear()}-${pad(n.getMonth()+1)}`}
+function vanMonth(){return S.months.some(m=>m.id===curMonthId())?curMonthId():null}
+function hhmm(d){return d?`${pad(d.getHours())}:${pad(d.getMinutes())}`:'—'}
+function vanSchedulePush(){}   // ไม่ต้องส่งเอง — จอดึงจากฐานข้อมูลโดยตรง
+function vanChip(){
+  const b=$('#btnSync');if(!b)return;b.classList.remove('ok','busy','err');
+  const last=VAN.devices.map(d=>d.last_seen&&new Date(d.last_seen)).filter(Boolean).sort((a,b)=>b-a)[0];
+  let t='เชื่อมจอรถ';
+  if(VAN.busy){b.classList.add('busy');t='กำลังซิงก์…'}
+  else if(VAN.state==='err'){b.classList.add('err');t='ซิงก์ไม่ได้'}
+  else if(VAN.devices.length){const fresh=last&&Date.now()-last<10*60e3;if(fresh)b.classList.add('ok');
+    $('#syncTxt').innerHTML='<span class="tl">จอ </span>'+(last?hhmm(last):'ยังไม่ต่อ');return}
+  $('#syncTxt').textContent=t;
+}
+async function vanLoadDevices(){const {data,error}=await sb.from('devices').select('id,label,last_seen,fw_version,created_at').eq('van_id',CTX.vanId).order('created_at');if(error)throw error;VAN.devices=data||[]}
+async function vanLoadMeta(month){
+  if(VAN.syncMonth===month)return;VAN.syncMonth=month;VAN.applied={};VAN.rev=0;
+  try{const d=await db.doc(`vansync/${month}`).get();if(d.exists){const x=d.data();VAN.applied=clone(x.applied)||{};VAN.rev=+x.rev||0}}catch{}
+}
+async function vanPull(month){
+  await vanLoadMeta(month);
+  const {data,error}=await sb.from('van_status').select('rev,status,at').eq('van_id',CTX.vanId).eq('month',month).maybeSingle();
+  if(error)throw error;VAN.lastPull=new Date();if(!data)return 0;
+  const st={month,rev:data.rev,status:data.status||{},at:data.at};VAN.devAt=st.at?new Date(st.at):null;
+  if((+st.rev||0)===VAN.rev&&JSON.stringify(st.status)===JSON.stringify(VAN.applied))return 0;
+  if(month!==S.month)return 0;
+  const changed=new Set();let n=0;
+  for(const [key,val] of Object.entries(st.status)){
+    if(JSON.stringify(VAN.applied[key])===JSON.stringify(val))continue;
+    const parts=key.split('|');const isBack=parts.length>=4&&parts[parts.length-1]==='b';
+    const dd=parts[0],sh=parts[1]==='n'?'night':'morning',name=parts.slice(2,isBack?-1:undefined).join('|');
+    const day=S.days[dd];const rr=day&&(day[sh]||[]).find(x=>x.name===name);if(!rr)continue;
+    if(isBack){if(!!rr.back!==!!val){rr.back=!!val;changed.add(dd);n++}}
+    else{const v=val==='r'?'ride':val==='n'?'no':'';if((rr.status||'')!==v){rr.status=v;changed.add(dd);n++}}
+  }
+  VAN.applied=clone(st.status);VAN.rev=+st.rev||0;
+  saveDoc(`vansync/${month}`,{applied:VAN.applied,rev:VAN.rev,at:new Date().toISOString()});
+  changed.forEach(dd=>saveDoc(`months/${month}/days/${dd}`,S.days[dd]));
+  if(changed.size)render();
+  return n;
+}
+function vanErr(e){return 'ซิงก์ไม่สำเร็จ: '+(e?.message||e)}
+async function vanSync(opts={}){
+  if(VAN.busy)return;VAN.busy=true;vanChip();
+  try{await vanLoadDevices();const m=vanMonth();const n=m?await vanPull(m):0;
+    VAN.state='ok';VAN.msg=n?`รับผลจากจอรถ ${n} รายการ`:'';if(opts.toast)toast(n?VAN.msg:'ซิงก์แล้ว')}
+  catch(e){VAN.state='err';VAN.msg=vanErr(e);if(opts.toast)toast(VAN.msg)}
+  finally{VAN.busy=false;vanChip();if($('#syncSheet'))vanSheetBody()}
+}
+function vanStartAuto(){if(VAN.pullI)return;VAN.pullI=setInterval(()=>{if(document.visibilityState==='visible')vanSync()},60000);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')vanSync()})}
+function vanSheetBody(){
+  const host=$('#syncBody');if(!host)return;
+  const ago=d=>{if(!d)return 'ยังไม่เคยต่อ';const m=Math.round((Date.now()-new Date(d))/60000);return m<1?'เมื่อสักครู่':m<60?`${m} นาทีที่แล้ว`:new Date(d).toLocaleString('th-TH',{dateStyle:'short',timeStyle:'short'})};
+  host.innerHTML=`${VAN.devices.length?`<div class="pick">${VAN.devices.map(d=>`<label style="grid-template-columns:1fr auto"><span><b>${esc(d.label||'จอในรถ')}</b><br><span class="hint">ต่อล่าสุด: ${ago(d.last_seen)}${d.fw_version?` · ${esc(d.fw_version)}`:''}</span></span><button type="button" class="ghost danger" data-unpair="${d.id}">ยกเลิก</button></label>`).join('')}</div>`:'<p class="hint">ยังไม่มีจอที่จับคู่กับรถคันนี้</p>'}
+   ${VAN.state==='err'?`<p class="danger">${esc(VAN.msg)}</p>`:VAN.msg?`<p class="hint">${esc(VAN.msg)}</p>`:''}
+   <p class="hint">รายชื่อที่แก้ในแอปนี้ จอจะดึงไปเองเมื่อต่อเน็ต (hotspot มือถือ) · ที่ติ๊กในจอจะเข้ามาในตารางทุก 1 นาที</p>`;
+  host.querySelectorAll('[data-unpair]').forEach(b=>b.onclick=async()=>{if(!b.classList.contains('armed')){b.classList.add('armed');b.textContent='กดอีกครั้ง';return}
+    const {error}=await sb.from('devices').delete().eq('id',b.dataset.unpair);if(error)toast(error.message);else{toast('ยกเลิกการจับคู่แล้ว');vanSync()}});
+}
+function openSyncSheet(){
+  openSheet(`<h3 id="syncSheet">🚐 จอในรถ</h3><div id="syncBody"></div>
+   <div class="field"><label for="s-code">จับคู่จอใหม่: ใส่รหัส 6 หลักที่ขึ้นบนจอ</label>
+    <div style="display:flex;gap:8px"><input id="s-code" inputmode="numeric" maxlength="6" placeholder="เช่น 482913" style="flex:1;font-size:22px;letter-spacing:4px;min-height:48px"><button class="primary" id="s-pair" style="min-height:48px">จับคู่</button></div></div>
+   <button id="s-now" style="min-height:46px">ดึงผลจากจอตอนนี้</button>
+   <button id="s-file" style="min-height:44px">สำรอง: บันทึกไฟล์ .json (อัปโหลดผ่าน 192.168.4.1)</button>
+   <button class="ghost" data-act="close">ปิด</button>`,sh=>{
+    vanSheetBody();
+    sh.querySelector('#s-now').onclick=()=>vanSync({toast:true});
+    sh.querySelector('#s-file').onclick=()=>{closeSheet();doVanExport()};
+    sh.querySelector('#s-pair').onclick=async()=>{const c=sh.querySelector('#s-code').value.replace(/\D/g,'');if(c.length!==6){toast('ใส่รหัส 6 หลัก');return}
+      const {error}=await sb.rpc('device_pair_claim',{p_code:c,p_van:CTX.vanId,p_label:'จอ '+(VAN.devices.length+1)});
+      if(error){toast(error.message);return}toast('จับคู่แล้ว — จอจะเริ่มดึงข้อมูลภายในไม่กี่วินาที');sh.querySelector('#s-code').value='';setTimeout(()=>vanSync(),1500)};
+  });
+}
+function vanBoot(){vanSync();vanStartAuto()}
+
+/* ---------- ใบขอรถ ---------- */
+const LOGO_TS="";
+const LOGO_ACS="";
+const FORM_DEF={company:'',addr1:'',addr2:'',email:'',title:'ขอใช้รถเสริม',driver:'',driverPhone:'',mainNo:'',mainPlate:'',extraNo:'',extraPlate:'',extraDriver:'',extraPhone:'',defaultExtra:4,logo1:'',logo2:''};
+S.form={...FORM_DEF};
+function openFormSetup(){
+  const d=S.days[S.day];if(!d)return;
+  let shift=S.mShift||((h=>h>=5&&h<17)(new Date().getHours())?'morning':'night');
+  const F=S.form;
+  const body=()=>{const L=d[shift]||[];const n=Math.min(F.defaultExtra,L.length);
+    return `<div class="field"><label>รายชื่อ — ติ๊ก = ขึ้นรถเสริม (เรียงตามลำดับรับ)</label><div class="pick" id="pick">${L.map((r,i)=>`<label class="${r.status==='no'?'x':''}"><input type="checkbox" data-i="${i}" ${i<n&&r.status!=='no'?'checked':''}><span>${i+1}. ${esc(r.name)}${r.ot?' <span class="otb">OT</span>':''}${r.status==='no'?' <span class="danger">(ไม่ขึ้น)</span>':''}<br><span class="hint">${esc(r.place)}</span></span><span class="tag">รถเสริม</span></label>`).join('')||'<div class="empty-row">ไม่มีคนในกะนี้</div>'}</div></div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px"><button type="button" id="q-first">${F.defaultExtra} คนแรก → รถเสริม</button><button type="button" id="q-none">ไม่ใช้รถเสริม</button></div>`};
+  openSheet(`<h3>ทำใบขอรถ — วันที่ ${+S.day} ${esc(monthLabel(S.month))}</h3>
+   <div class="shift-switch" style="display:flex" id="fshift">${['morning','night'].map(s=>`<button class="${s} ${s===shift?'on':''}" data-s="${s}">${SH[s].label} (${(d[s]||[]).length})</button>`).join('')}</div>
+   <div id="fbody">${body()}</div>
+   <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="f-skipno" checked style="min-height:auto"> ไม่ใส่คนที่กด “ไม่ขึ้น”</label>
+   <details class="cfg"><summary>ข้อมูลหัวฟอร์ม / รถ / คนขับ</summary>
+    <div class="field"><label for="c-company">บริษัท (หัวกระดาษ)</label><input id="c-company" value="${esc(F.company)}"></div>
+    <div class="field"><label for="c-addr1">ที่อยู่ (บรรทัด 1)</label><input id="c-addr1" value="${esc(F.addr1)}"></div>
+    <div class="field"><label for="c-addr2">เลขผู้เสียภาษี / โทร (บรรทัด 2)</label><input id="c-addr2" value="${esc(F.addr2)}"></div>
+    <div class="field"><label for="c-email">E-Mail</label><input id="c-email" value="${esc(F.email)}"></div>
+    <div class="field"><label for="c-title">ชื่อฟอร์ม</label><input id="c-title" value="${esc(F.title)}"></div>
+    <div class="row2"><div class="field"><label for="c-driver">พนักงานขับรถหลัก</label><input id="c-driver" value="${esc(F.driver)}"></div><div class="field"><label for="c-driverPhone">เบอร์โทร</label><input id="c-driverPhone" value="${esc(F.driverPhone)}"></div></div>
+    <div class="row2"><div class="field"><label for="c-mainNo">รถหลัก เบอร์</label><input id="c-mainNo" value="${esc(F.mainNo)}"></div><div class="field"><label for="c-mainPlate">ทะเบียนรถหลัก</label><input id="c-mainPlate" value="${esc(F.mainPlate)}"></div></div>
+    <div class="row2"><div class="field"><label for="c-extraNo">รถเสริม เบอร์</label><input id="c-extraNo" value="${esc(F.extraNo)}"></div><div class="field"><label for="c-extraPlate">ทะเบียนรถเสริม</label><input id="c-extraPlate" value="${esc(F.extraPlate)}"></div></div>
+    <div class="row2"><div class="field"><label for="c-extraDriver">พขร. รถเสริม</label><input id="c-extraDriver" value="${esc(F.extraDriver)}"></div><div class="field"><label for="c-extraPhone">เบอร์โทร พขร. รถเสริม</label><input id="c-extraPhone" value="${esc(F.extraPhone)}"></div></div>
+    <div class="row2"><div class="field"><label for="c-logo1f">โลโก้ซ้าย</label><input id="c-logo1f" type="file" accept="image/*"></div><div class="field"><label for="c-logo2f">โลโก้ขวา</label><input id="c-logo2f" type="file" accept="image/*"></div></div>
+    <div class="row2"><div class="field"><label for="c-defaultExtra">จำนวนรถเสริมเริ่มต้น</label><input id="c-defaultExtra" type="number" min="0" max="20" value="${F.defaultExtra}"></div></div>
+   </details>
+   <div class="foot"><span></span><div><button class="ghost" data-act="close">ยกเลิก</button><button class="primary" id="b-make">สร้างใบขอรถ</button></div></div>`,sh=>{
+    for(const k of ['logo1','logo2'])sh.querySelector('#c-'+k+'f').onchange=e=>{const f=e.target.files[0];if(!f)return;const im=new Image();const r=new FileReader();
+      r.onload=()=>{im.onload=()=>{const c=document.createElement('canvas'),sc=Math.min(1,240/im.width);c.width=im.width*sc;c.height=im.height*sc;c.getContext('2d').drawImage(im,0,0,c.width,c.height);sh.dataset[k]=c.toDataURL('image/jpeg',.85);toast('เลือกโลโก้แล้ว')};im.src=r.result};r.readAsDataURL(f)};
+    const wire=()=>{
+      sh.querySelector('#q-first').onclick=()=>{const L=d[shift];let c=0;sh.querySelectorAll('#pick input').forEach(x=>{const r=L[+x.dataset.i];x.checked=r.status!=='no'&&c<F.defaultExtra&&!!(++c)})};
+      sh.querySelector('#q-none').onclick=()=>sh.querySelectorAll('#pick input').forEach(x=>x.checked=false);
+    };wire();
+    sh.querySelectorAll('#fshift button').forEach(b=>b.onclick=()=>{shift=b.dataset.s;sh.querySelectorAll('#fshift button').forEach(x=>x.classList.toggle('on',x===b));sh.querySelector('#fbody').innerHTML=body();wire()});
+    sh.querySelector('#b-make').onclick=()=>{
+      const keys=Object.keys(FORM_DEF);const nf={...F};
+      keys.forEach(k=>{const el=sh.querySelector('#c-'+k);if(el)nf[k]=k==='defaultExtra'?Math.max(0,+el.value||0):el.value.trim()});
+      for(const k of ['logo1','logo2']){const u=sh.dataset[k];if(u)nf[k]=u}
+      if(JSON.stringify(nf)!==JSON.stringify(F)){S.form=nf;saveDoc('settings/form',nf)}
+      const skip=sh.querySelector('#f-skipno').checked;const L=d[shift]||[];
+      const extraIdx=new Set([...sh.querySelectorAll('#pick input:checked')].map(x=>+x.dataset.i));
+      const keep=L.map((r,i)=>({r,i})).filter(o=>!(skip&&o.r.status==='no'));
+      const extra=keep.filter(o=>extraIdx.has(o.i)).map(o=>o.r),main=keep.filter(o=>!extraIdx.has(o.i)).map(o=>o.r);
+      closeSheet();showForm({day:S.day,shift,main,extra,ot:keep.map(o=>o.r).filter(r=>r.ot)});
+    };
+  });
+}
+function formTitleDate(f){const dt=dateOf(f.day);return `${TH_D[dt.getDay()]} ${+f.day} ${monthLabel(S.month)}`}
+function beParts(f){const [y,m]=S.month.split('-');return {d:+f.day,m:TH_M[+m-1],y:+y+543}}
+const fill=(v,w)=>`<span class="fill" style="min-width:${w}px">${esc(v)||'&nbsp;'}</span>`;
+function formTable(list,minRows){
+  const n=Math.max(minRows,list.length);let rows='';
+  for(let i=0;i<n;i++){const r=list[i];rows+=`<tr><td class="c">${i+1}</td><td>${r?esc(r.name):''}</td><td class="c">${r?esc(r.team):''}</td><td>${r?esc(r.place):''}</td><td class="c">${r?esc(r.phone):''}</td></tr>`}
+  return `<table class="ft"><colgroup><col style="width:9%"><col style="width:32%"><col style="width:10%"><col style="width:28%"><col style="width:21%"></colgroup><thead><tr><th>ลำดับ</th><th>ชื่อ</th><th>กะ</th><th>ที่อยู่</th><th>เบอร์โทร</th></tr></thead><tbody>${rows}</tbody></table>`}
+function formHtml(f){const F=S.form;const be=beParts(f);const box=on=>`<span class="box">${on?'✓':''}</span>`;
+  return `<div class="paper" id="paper">
+   <div class="lh">${F.logo1?`<img class="lg1" src="${F.logo1}" alt="">`:'<span></span>'}<div class="lt"><b>${esc(F.company)}</b><div>${esc(F.addr1)}</div><div>${esc(F.addr2)}</div><div>E-Mail : <u>${esc(F.email)}</u></div></div>${F.logo2?`<img class="lg2" src="${F.logo2}" alt="">`:'<span></span>'}</div>
+   <div class="ftitle">${esc(F.title)}</div>
+   <div class="dl">วันที่ ${fill(be.d,40)} เดือน ${fill(be.m,110)} พ.ศ. ${fill(be.y,70)}</div>
+   <div class="fl"><b>( รถหลัก ) เบอร์</b> ${fill(F.mainNo,70)} <b>ทะเบียนรถ</b> ${fill(F.mainPlate,110)} <b>ขอใช้รถเสริมในช่วง</b> ${box(f.shift==='morning')} เช้า &nbsp; ${box(f.shift==='night')} เย็น</div>
+   <div class="fl"><b>พขร.</b> ${fill(F.driver,280)} <b>เบอร์โทร</b> ${fill(F.driverPhone,200)}</div>
+   ${formTable(f.main,6)}
+   <div class="fl" style="margin-top:26px"><b>( รถเสริม ) ทะเบียน</b> ${fill((F.extraNo?F.extraNo+' ':'')+F.extraPlate,160)}</div>
+   <div class="fl"><b>พขร.</b> ${fill(F.extraDriver,280)} <b>เบอร์โทร</b> ${fill(F.extraPhone,200)}</div>
+   ${formTable(f.extra,6)}
+   <div class="fl" style="margin-top:26px"><b>OT.จำนวน</b> ${fill(f.ot.length,70)} <b>ท่าน</b></div>
+   ${formTable(f.ot,3)}
+  </div>`}
+function formText(f){const F=S.form;const sh=SH[f.shift];const line=(r,i)=>`${i+1}. ${r.name} (${r.team}) ${r.place} ${r.phone}`;
+  return [`${F.title} — ${formTitleDate(f)}`,`${sh.label} ${sh.xl}  รวม ${f.main.length+f.extra.length} คน`,'',
+   `รถหลัก ${F.mainNo} (${f.main.length} คน)`,...f.main.map(line),'',`รถเสริม ${F.extraPlate||''} (${f.extra.length} คน)`,...(f.extra.length?f.extra.map(line):['-']),'',
+   `OT ${f.ot.length} คน`,...(f.ot.length?f.ot.map((r,i)=>`${i+1}. ${r.name}`):['-'])].join('\n')}
+function formFileBase(f){const [y,m]=S.month.split('-');return `ใบขอรถ_${+f.day}${TH_M[+m-1]}${y}_${SH[f.shift].label}`}
+function showForm(f){
+  const host=document.createElement('div');host.className='fv';host.id='fv';
+  host.innerHTML=`<div class="fv-bar"><button data-fv="back">‹ กลับ</button><div>
+    <button data-fv="png" class="primary">บันทึกรูป</button><button data-fv="xlsx">Excel</button><button data-fv="copy">คัดลอกข้อความ</button></div></div>
+   <div class="fv-body"><div class="fv-scale">${formHtml(f)}</div></div>`;
+  document.body.appendChild(host);
+  const fit=()=>{const body=host.querySelector('.fv-body'),sc=host.querySelector('.fv-scale'),p=host.querySelector('.paper');const w=body.clientWidth-32;const k=Math.min(1,w/p.offsetWidth);
+    sc.style.transform=`scale(${k})`;sc.style.width=k<1?p.offsetWidth+'px':'';sc.style.height=(p.offsetHeight*k)+'px';sc.style.margin=k<1?'0':''};
+  fit();window.addEventListener('resize',fit);
+  host.addEventListener('click',async e=>{const b=e.target.closest('[data-fv]');if(!b)return;const a=b.dataset.fv;
+    if(a==='back'){window.removeEventListener('resize',fit);host.remove();return}
+    if(a==='copy'){const txt=formText(f);try{await navigator.clipboard.writeText(txt);toast('คัดลอกแล้ว — วางใน LINE ได้เลย')}catch{toast('คัดลอกไม่ได้ในมุมมองนี้')}return}
+    if(!dl){toast('หน้านี้ดาวน์โหลดไฟล์ไม่ได้ในมุมมองนี้');return}
+    if(a==='png'){if(!window.html2canvas){toast('โหลดตัวสร้างรูปไม่สำเร็จ ลองรีเฟรช');return}
+      b.disabled=true;try{const sc=host.querySelector('.fv-scale');const old=sc.style.transform;sc.style.transform='none';
+        const cv=await html2canvas(host.querySelector('#paper'),{scale:2,backgroundColor:'#ffffff'});sc.style.transform=old;
+        const blob=await new Promise(r=>cv.toBlob(r,'image/png'));await dl.save({filename:formFileBase(f)+'.png',data:blob});toast('บันทึกรูปแล้ว')}
+      catch(err){if(err?.code!=='declined')toast('บันทึกรูปไม่สำเร็จ: '+(err?.message||err?.code))}finally{b.disabled=false}}
+    if(a==='xlsx'){const F=S.form;const sh=SH[f.shift];const hdr=['ลำดับ','ชื่อ','กะ','ที่อยู่','เบอร์โทร'];const rows=(L,n=6)=>Array.from({length:Math.max(n,L.length)},(_,i)=>L[i]?[i+1,L[i].name,L[i].team,L[i].place,L[i].phone]:[i+1,'','','','']);
+      const be=beParts(f);
+      const aoa=[[F.company],[F.addr1],[F.addr2],['E-Mail : '+F.email],[],[F.title],[`วันที่ ${be.d} เดือน ${be.m} พ.ศ. ${be.y}`],[],
+        [`( รถหลัก ) เบอร์ ${F.mainNo}  ทะเบียนรถ ${F.mainPlate}  ขอใช้รถเสริมในช่วง ${f.shift==='morning'?'☑ เช้า  ☐ เย็น':'☐ เช้า  ☑ เย็น'}`],[`พขร. ${F.driver}   เบอร์โทร ${F.driverPhone}`],hdr,...rows(f.main),[],
+        [`( รถเสริม ) ทะเบียน ${(F.extraNo?F.extraNo+' ':'')+F.extraPlate}`],[`พขร. ${F.extraDriver}   เบอร์โทร ${F.extraPhone}`],hdr,...rows(f.extra),[],
+        [`OT.จำนวน ${f.ot.length} ท่าน`],hdr,...rows(f.ot,3)];
+      const ws=XLSX.utils.aoa_to_sheet(aoa);ws['!cols']=[{wch:7},{wch:32},{wch:12},{wch:36},{wch:14}];ws['!merges']=[0,1,2,3,5,6].map(r=>({s:{r,c:0},e:{r,c:4}}));
+      const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'ใบขอรถ');
+      try{await dl.save({filename:formFileBase(f)+'.xlsx',data:new Uint8Array(XLSX.write(wb,{bookType:'xlsx',type:'array'}))});toast('ส่งออกแล้ว')}catch(err){if(err?.code!=='declined')toast('ส่งออกไม่สำเร็จ: '+(err?.message||err?.code))}}
+  });
+}
+
+/* ---------- ตั้งค่าเส้นทาง ---------- */
+function openRouteSettings(){const R=S.route;const f=(id,lab,v,ph='')=>`<div class="field"><label for="r-${id}">${lab}</label><input id="r-${id}" value="${esc(v)}" placeholder="${ph}"></div>`;
+  openSheet(`<h3>⚙ ตั้งค่าเส้นทาง</h3>
+   <div class="row2">${f('startName','ชื่อจุดเริ่มต้น',R.startName)}${f('start','พิกัดจุดจอดรถ (เริ่มต้น/จบ)',R.start,'12.67, 101.27')}</div>
+   <div class="row2">${f('endName','ชื่อปลายทาง',R.endName)}${f('end','พิกัดโรงงาน',R.end)}</div>
+   <div class="row2"><div class="field"><label for="r-arrM">รอบเช้า: ถึงคนแรก</label><input id="r-arrM" type="time" value="${R.arrM}"></div><div class="field"><label for="r-leaveM">รอบเช้า: ออกจากโรงงาน (ขาส่ง)</label><input id="r-leaveM" type="time" value="${R.leaveM}"></div></div>
+   <div class="row2"><div class="field"><label for="r-arrN">รอบดึก: ถึงคนแรก</label><input id="r-arrN" type="time" value="${R.arrN}"></div><div class="field"><label for="r-leaveN">รอบดึก: ออกจากโรงงาน (ขาส่ง)</label><input id="r-leaveN" type="time" value="${R.leaveN}"></div></div>
+   <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="r-marketOn" ${R.marketOn?'checked':''} style="min-height:auto"> แวะตลาดก่อนเข้าโรงงาน (ขารับรอบเช้า)</label>
+   <div class="row2">${f('market','พิกัดตลาด',R.market)}<div class="field"><label for="r-marketDow">วัน</label><select id="r-marketDow">${TH_D.map((t,i)=>`<option value="${i}" ${+R.marketDow===i?'selected':''}>${t}</option>`).join('')}</select></div></div>
+   <details class="cfg"><summary>ค่าคำนวณ (ขั้นสูง)</summary>
+    <div class="row2"><div class="field"><label for="r-speed">ความเร็วเฉลี่ย (กม./ชม.)</label><input id="r-speed" type="number" step="1" value="${R.speed}"></div><div class="field"><label for="r-stop">เวลาจอดรับต่อจุด (นาที)</label><input id="r-stop" type="number" step="0.5" value="${R.stop}"></div></div>
+    <div class="field"><label for="r-rf">ตัวคูณระยะถนน (ระยะเส้นตรง × ค่านี้)</label><input id="r-rf" type="number" step="0.05" value="${R.rf}"><span class="hint">ถ้าระยะในแอปน้อยกว่าเลขไมล์จริง ให้เพิ่มค่านี้</span></div>
+   </details>
+   <div class="foot"><button class="ghost" id="r-reset">คืนค่าเริ่มต้น</button><div><button class="ghost" data-act="close">ยกเลิก</button><button class="primary" id="r-save">บันทึก</button></div></div>`,sh=>{
+    sh.querySelector('#r-reset').onclick=()=>{S.route={...ROUTE_DEF};solveCache.clear();saveDoc('settings/route',S.route);closeSheet();render();toast('คืนค่าเริ่มต้นแล้ว')};
+    sh.querySelector('#r-save').onclick=()=>{const v=id=>sh.querySelector('#r-'+id).value.trim();
+      for(const k of ['start','end','market'])if(v(k)&&!parseLL(v(k))){toast('พิกัดไม่ถูกต้อง: '+k);return}
+      const nr={...R,startName:v('startName'),start:v('start'),endName:v('endName'),end:v('end'),market:v('market'),marketDow:+v('marketDow'),marketOn:sh.querySelector('#r-marketOn').checked,
+        arrM:v('arrM'),arrN:v('arrN'),leaveM:v('leaveM'),leaveN:v('leaveN'),speed:Math.max(5,+v('speed')||40),stop:Math.max(0,+v('stop')||0),rf:Math.max(1,+v('rf')||1.3)};
+      S.route=nr;solveCache.clear();saveDoc('settings/route',nr);closeSheet();render();toast('บันทึกแล้ว')};
+  });
+}
+
+/* ---------- ส่งออกข้อมูลทั้งหมด (ย้ายไประบบใหม่) ---------- */
+async function exportAll(){
+  if(!db||!dl){toast('ส่งออกไม่ได้ในมุมมองนี้');return}
+  toast('กำลังรวบรวมข้อมูล…');
+  const months=[];
+  for(const m of S.months){const days=await new Promise(res=>{let un=null,done=false;
+      un=db.collection(`months/${m.id}/days`).onSnapshot(snap=>{if(done)return;done=true;const o={};snap.docs.forEach(d=>o[d.id]=clone(d.data()));res(o);setTimeout(()=>un&&un(),0)},()=>{done=true;res({})})});
+    months.push({id:m.id,label:m.label||monthLabel(m.id),days})}
+  const vansync={};for(const m of S.months){try{const d=await db.doc(`vansync/${m.id}`).get();if(d.exists)vansync[m.id]=clone(d.data())}catch{}}
+  const b={kind:'tpac-backup',v:1,at:new Date().toISOString(),employees:S.emps.map(e=>clone(e)),
+    settings:{form:{...S.form,logo1:S.form.logo1||LOGO_TS,logo2:S.form.logo2||LOGO_ACS},route:clone(S.route)},months,vansync};
+  const n=new Date();
+  try{await dl.save({filename:`tpac_backup_${n.getFullYear()}${pad(n.getMonth()+1)}${pad(n.getDate())}.json`,data:new Blob([JSON.stringify(b)],{type:'application/json'})});
+    toast(`ส่งออกแล้ว — พนักงาน ${b.employees.length} คน · ${months.length} เดือน`)}catch(e){if(e?.code!=='declined')toast('ส่งออกไม่สำเร็จ: '+(e?.message||e?.code))}
+}
+
+/* ---------- events ---------- */
+document.addEventListener('click',e=>{
+  const t=e.target.closest('[data-act]');if(!t)return;const a=t.dataset.act;
+  if(a==='scrim'&&e.target!==t)return;
+  const s=t.dataset.shift,i=+t.dataset.i;const d=S.days[S.day];
+  switch(a){
+    case 'day': if(t.dataset.day){S.day=t.dataset.day;render.scrolled=false;render()} break;
+    case 'mshift': S.mShift=s;render();break;
+    case 'form': openFormSetup();break;
+    case 'goto': S.day=t.dataset.day;S.tab='day';render.scrolled=false;render();window.scrollTo({top:0});break;
+    case 'st': if(d[s][i].status!==t.dataset.v){d[s][i].status=t.dataset.v;saveDay(S.day)} break;
+    case 'stClear': d[s][i].status='';saveDay(S.day);break;
+    case 'back': d[s][i].back=!d[s][i].back;saveDay(S.day);break;
+    case 'ot': d[s][i].ot=!d[s][i].ot;saveDay(S.day);break;
+    case 'mv':{const j=i+(+t.dataset.d);const L=d[s];[L[i],L[j]]=[L[j],L[i]];saveDay(S.day);break}
+    case 'edit': editRider(s,i);break;
+    case 'add': addRider(s);break;
+    case 'empAdd': editEmp(null);break;
+    case 'empEdit': editEmp(t.dataset.id);break;
+    case 'empMv':{const k=S.emps.findIndex(x=>x.id===t.dataset.id);const j=k+(+t.dataset.d);[S.emps[k],S.emps[j]]=[S.emps[j],S.emps[k]];
+      S.emps.forEach((x,n)=>{if(x.order!==n+1){x.order=n+1;saveEmp(x)}});render();break}
+    case 'close': case 'scrim': closeSheet();break;
+    case 'cancelImport': S.pending=null;render();break;
+    case 'confirmImport':{let p=S.pending;
+      if(p.kind==='shift'){const v=$('#p-month')?.value;if(v&&v!==p.monthId)p=parseShiftTable(p.rows,p.fname,v);finishShiftImport(p)}
+      S.pending=null;writeMonth(p.monthId,p.days).then(()=>toast('บันทึก '+monthLabel(p.monthId)+' แล้ว'));break}
+    case 'opt': d[s]=optimizeList(d[s]);saveDay(S.day);toast('จัดลำดับตามเส้นทางสั้นสุดแล้ว');break;
+    case 'settings': openRouteSettings();break;
+  }
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSheet()});
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{S.tab=t.dataset.tab;render.scrolled=false;render()});
+$('#monthSel').onchange=e=>{render.scrolled=false;selectMonth(e.target.value)};
+$('#btnImport').onclick=()=>$('#file').click();
+$('#file').onchange=e=>{const f=e.target.files[0];if(f)onFile(f);e.target.value=''};
+$('#btnNew').onclick=newMonth;
+$('#btnExport').onclick=doExport;
+$('#btnSync').onclick=openSyncSheet;
+$('#btnAcc').onclick=openAccount;
+if($('#btnAll'))$('#btnAll').onclick=exportAll;
+$('#btnMore').onclick=()=>openSheet(`<h3>เมนู</h3>
+  <button id="m-imp" class="primary" style="min-height:48px">นำเข้าตารางกะ (Excel)</button>
+  <button id="m-new" style="min-height:48px">สร้างเดือนใหม่</button>
+  <button id="m-exp" class="primary" style="min-height:48px" ${!S.month||!Object.keys(S.days).length?'disabled':''}>ส่งออก Excel ${S.month?esc(monthLabel(S.month)):''}</button>
+  <button id="m-van" style="min-height:48px">🚐 ซิงก์กับจอรถ</button>
+  <button id="m-set" style="min-height:48px">⚙ ตั้งค่าเส้นทาง / เวลา</button>
+  <button id="m-acc" style="min-height:48px">👤 บัญชี / นำเข้าข้อมูลเดิม / ออกจากระบบ</button>
+  <button id="m-all" style="min-height:48px">📦 ส่งออกข้อมูลทั้งหมด (ย้ายไประบบใหม่)</button>
+  <button class="ghost" data-act="close">ปิด</button>`,sh=>{
+  sh.querySelector('#m-van').onclick=()=>{closeSheet();openSyncSheet()};
+  sh.querySelector('#m-set').onclick=()=>{closeSheet();openRouteSettings()};
+  sh.querySelector('#m-acc').onclick=()=>{closeSheet();openAccount()};
+  sh.querySelector('#m-all').onclick=()=>{closeSheet();exportAll()};
+  sh.querySelector('#m-imp').onclick=()=>{closeSheet();$('#file').click()};
+  sh.querySelector('#m-new').onclick=()=>{closeSheet();newMonth()};
+  sh.querySelector('#m-exp').onclick=()=>{closeSheet();doExport()};
+});
+
+/* ---------- Supabase: การเชื่อมต่อ ล็อกอิน และที่เก็บข้อมูล ---------- */
+const SB_URL='https://mkmibwypqpneciriychz.supabase.co';
+const SB_KEY='sb_publishable_4XXDfQ0RrgvjPFK6fFCWhA_4b62vjEw';   // publishable key เปิดเผยได้ — สิทธิ์ถูกคุมด้วย RLS
+const sb=window.supabase?window.supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true}}):null;
+const CTX={vanId:null,companyId:null,vanName:'',vanCode:'',who:'',role:null};
+
+// เก็บไฟล์ลงเครื่อง (แทน downloads ของ claude.ai)
+const DL={async save({filename,data}){const blob=data instanceof Blob?data:new Blob([data]);const u=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=u;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),30000)}};
+
+// ตัวแปลง API เดิม (db.doc / db.collection) → ตาราง van_docs + day_lists ของรถคันนี้
+function makeDb(vanId,coId){
+  const DAY=/^months\/(\d{4}-\d{2})\/days\/(\d{2})$/, DAYS=/^months\/(\d{4}-\d{2})\/days$/;
+  const subs=new Set();
+  const dayDoc=r=>{const dd=r.day.slice(8,10);return {id:dd,data:{d:+dd,weekday:TH_D[new Date(r.day+'T00:00:00').getDay()],morning:r.morning||[],night:r.night||[]}}};
+  async function load(path){
+    const m=path.match(DAYS);
+    if(m){const [y,mo]=m[1].split('-').map(Number);const last=new Date(y,mo,0).getDate();
+      const {data,error}=await sb.from('day_lists').select('day,morning,night').eq('van_id',vanId).gte('day',`${m[1]}-01`).lte('day',`${m[1]}-${pad(last)}`);
+      if(error)throw error;return (data||[]).map(dayDoc)}
+    const {data,error}=await sb.from('van_docs').select('path,data').eq('van_id',vanId).like('path',path+'/%');
+    if(error)throw error;
+    return (data||[]).filter(r=>!r.path.slice(path.length+1).includes('/')).map(r=>({id:r.path.slice(path.length+1),data:r.data}));
+  }
+  async function refresh(s){try{const docs=await load(s.path);const sig=JSON.stringify(docs);if(sig===s.sig)return;s.sig=sig;
+      s.cb({docs:docs.map(x=>({id:x.id,data:()=>clone(x.data)}))})}catch(e){s.err&&s.err(e)}}
+  setInterval(()=>{if(document.visibilityState==='visible')subs.forEach(refresh)},20000);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')subs.forEach(refresh)});
+  return {
+    collection(path){return {onSnapshot(cb,err){const s={path,cb,err,sig:null};subs.add(s);refresh(s);return ()=>subs.delete(s)}}},
+    doc(path){return {
+      async set(data){const m=path.match(DAY);let r;
+        if(m)r=await sb.from('day_lists').upsert({van_id:vanId,company_id:coId,day:`${m[1]}-${m[2]}`,morning:data.morning||[],night:data.night||[],updated_at:new Date().toISOString()});
+        else r=await sb.from('van_docs').upsert({van_id:vanId,company_id:coId,path,data,updated_at:new Date().toISOString()});
+        if(r.error)throw r.error},
+      async delete(){const m=path.match(DAY);const r=m?await sb.from('day_lists').delete().eq('van_id',vanId).eq('day',`${m[1]}-${m[2]}`):await sb.from('van_docs').delete().eq('van_id',vanId).eq('path',path);if(r.error)throw r.error},
+      async get(){const m=path.match(DAY);
+        if(m){const {data,error}=await sb.from('day_lists').select('day,morning,night').eq('van_id',vanId).eq('day',`${m[1]}-${m[2]}`).maybeSingle();if(error)throw error;return {exists:!!data,data:()=>data?dayDoc(data).data:null}}
+        const {data,error}=await sb.from('van_docs').select('data').eq('van_id',vanId).eq('path',path).maybeSingle();if(error)throw error;return {exists:!!data,data:()=>data?clone(data.data):null}}
+    }}
+  };
+}
+
+/* ---------- หน้าเข้าใช้งาน ---------- */
+const G=$('#gate');
+function gate(html){G.hidden=false;G.innerHTML=`<div class="g-card"><div class="g-brand">🚐 รถรับส่งพนักงาน</div>${html}</div>`}
+function gErr(e){const el=G.querySelector('.g-err');if(el)el.textContent=e?(e.message||e):''}
+function gBusy(b,on){if(b){b.disabled=on;b.dataset.t=b.dataset.t||b.textContent;b.textContent=on?'กำลังโหลด…':b.dataset.t}}
+
+function showStart(){
+  gate(`<p class="g-sub">เลือกวิธีเข้าใช้งาน</p>
+   <button class="primary g-big" id="g-drv">🚐 คนขับ — เข้าด้วยรหัสรถ</button>
+   <button class="g-big" id="g-own">🏢 เจ้าของ / แอดมินบริษัท</button>`);
+  $('#g-drv').onclick=showDriverLogin;$('#g-own').onclick=()=>showOwnerLogin('in');
+}
+function showDriverLogin(){
+  gate(`<h2>คนขับ</h2>
+   <div class="field"><label for="g-code">รหัสรถ (6 หลัก)</label><input id="g-code" inputmode="numeric" maxlength="6" autocomplete="off" class="g-num"></div>
+   <div class="field"><label for="g-pin">PIN</label><input id="g-pin" type="password" inputmode="numeric" maxlength="6" autocomplete="off" class="g-num"></div>
+   <p class="g-err danger"></p>
+   <button class="primary g-big" id="g-go">เข้าใช้งาน</button><button class="ghost" id="g-back">‹ กลับ</button>
+   <p class="hint">ไม่มีรหัส? ขอจากเจ้าของรถ/บริษัท</p>`);
+  try{const c=localStorage.getItem('vanCode');if(c)$('#g-code').value=c}catch{}
+  $('#g-back').onclick=showStart;
+  const go=async()=>{const b=$('#g-go'),code=$('#g-code').value.replace(/\D/g,''),pin=$('#g-pin').value.replace(/\D/g,'');
+    if(code.length!==6||pin.length<4){gErr('ใส่รหัสรถ 6 หลัก และ PIN');return}
+    gBusy(b,true);gErr('');
+    try{let {data:{session}}=await sb.auth.getSession();
+      if(!session||!session.user.is_anonymous){if(session)await sb.auth.signOut();const r=await sb.auth.signInAnonymously();if(r.error)throw r.error}
+      const {data,error}=await sb.rpc('driver_login',{p_code:code,p_pin:pin});if(error)throw error;
+      if(!data.ok)throw new Error(data.error);
+      try{localStorage.setItem('vanCode',code)}catch{}
+      openVan({vanId:data.van_id,companyId:data.company_id,vanName:data.van_name,vanCode:code,who:data.driver_name,role:'driver'});
+    }catch(e){gErr(e)}finally{gBusy(b,false)}};
+  $('#g-go').onclick=go;$('#g-pin').onkeydown=e=>{if(e.key==='Enter')go()};
+}
+function showOwnerLogin(mode){
+  gate(`<h2>${mode==='up'?'สมัครบัญชีบริษัท':'เข้าสู่ระบบ (เจ้าของ/แอดมิน)'}</h2>
+   <div class="field"><label for="g-mail">อีเมล</label><input id="g-mail" type="email" autocomplete="email"></div>
+   <div class="field"><label for="g-pw">รหัสผ่าน${mode==='up'?' (อย่างน้อย 8 ตัว)':''}</label><input id="g-pw" type="password" autocomplete="${mode==='up'?'new-password':'current-password'}"></div>
+   <p class="g-err danger"></p>
+   <button class="primary g-big" id="g-go">${mode==='up'?'สมัคร':'เข้าสู่ระบบ'}</button>
+   <button class="ghost" id="g-sw">${mode==='up'?'มีบัญชีแล้ว — เข้าสู่ระบบ':'ยังไม่มีบัญชี — สมัคร'}</button><button class="ghost" id="g-back">‹ กลับ</button>`);
+  $('#g-back').onclick=showStart;$('#g-sw').onclick=()=>showOwnerLogin(mode==='up'?'in':'up');
+  $('#g-go').onclick=async()=>{const b=$('#g-go'),email=$('#g-mail').value.trim(),password=$('#g-pw').value;
+    if(!email||password.length<(mode==='up'?8:1)){gErr(mode==='up'?'ใส่อีเมล และรหัสผ่านอย่างน้อย 8 ตัว':'ใส่อีเมลและรหัสผ่าน');return}
+    gBusy(b,true);gErr('');
+    try{const {data:{session}}=await sb.auth.getSession();if(session)await sb.auth.signOut();
+      if(mode==='up'){const r=await sb.auth.signUp({email,password,options:{emailRedirectTo:location.origin+location.pathname}});if(r.error)throw r.error;
+        if(!r.data.session){gate(`<h2>ตรวจอีเมล</h2><p>ส่งลิงก์ยืนยันไปที่ <b>${esc(email)}</b> แล้ว — กดลิงก์ในอีเมล แล้วกลับมาเข้าสู่ระบบ</p><button class="primary g-big" id="g-in">เข้าสู่ระบบ</button>`);$('#g-in').onclick=()=>showOwnerLogin('in');return}}
+      else{const r=await sb.auth.signInWithPassword({email,password});if(r.error)throw r.error}
+      showConsole();
+    }catch(e){gErr(e.message==='Invalid login credentials'?'อีเมลหรือรหัสผ่านไม่ถูกต้อง':e)}finally{gBusy(b,false)}};
+}
+
+/* ---------- หน้าเจ้าของ: บริษัท → รถ → คนขับ ---------- */
+async function showConsole(){
+  gate('<p>กำลังโหลด…</p>');
+  const {data:{user}}=await sb.auth.getUser();
+  const {data:mem,error}=await sb.from('members').select('company_id,role,companies(name,plan,trial_until)').eq('user_id',user.id);
+  if(error){gate(`<p class="danger">${esc(error.message)}</p><button id="g-out">ออกจากระบบ</button>`);$('#g-out').onclick=signOutAll;return}
+  if(!mem.length){
+    gate(`<h2>สร้างบริษัท</h2><div class="field"><label for="g-co">ชื่อบริษัท</label><input id="g-co" placeholder="เช่น บริษัท ... คาร์เรนท์"></div><p class="g-err danger"></p>
+     <button class="primary g-big" id="g-mk">สร้าง</button><button class="ghost" id="g-out">ออกจากระบบ (${esc(user.email)})</button>`);
+    $('#g-out').onclick=signOutAll;
+    $('#g-mk').onclick=async()=>{const n=$('#g-co').value.trim();const {error}=await sb.rpc('create_company',{p_name:n});if(error)gErr(error);else showConsole()};return}
+  const co=mem[0];CTX.companyId=co.company_id;
+  const [{data:vans},{data:drivers}]=await Promise.all([
+    sb.from('vans').select('id,code,name,plate,client_site,active').eq('company_id',co.company_id).order('created_at'),
+    sb.from('drivers').select('id,van_id,display_name,phone,active').eq('company_id',co.company_id).order('created_at')]);
+  const vCard=v=>{const ds=(drivers||[]).filter(d=>d.van_id===v.id);
+    return `<div class="g-van"><div class="g-vh"><div><b>${esc(v.name)}</b>${v.plate?` · ${esc(v.plate)}`:''}${v.client_site?` · ${esc(v.client_site)}`:''}</div>
+      <div class="g-code" title="ให้คนขับใช้รหัสนี้">รหัสรถ <b>${v.code}</b></div></div>
+      <div class="g-drv">${ds.length?ds.map(d=>`<div class="g-dr ${d.active?'':'off'}"><span>${esc(d.display_name)}${d.phone?` <span class="hint">${esc(d.phone)}</span>`:''}${d.active?'':' <span class="hint">(ปิดแล้ว)</span>'}</span>
+        <span><button data-pin="${d.id}">เปลี่ยน PIN</button><button data-act2="${d.active?'off':'on'}" data-d="${d.id}">${d.active?'ปิด':'เปิด'}</button></span></div>`).join(''):'<p class="hint">ยังไม่มีคนขับ</p>'}</div>
+      <div class="g-row"><button data-adddrv="${v.id}">+ คนขับ</button><button class="primary" data-open="${v.id}">เปิดตารางรถคันนี้ ›</button></div></div>`};
+  gate(`<div class="g-top"><div><h2>${esc(co.companies.name)}</h2><span class="hint">${esc(user.email)} · แพ็กเกจ ${esc(co.companies.plan)}${co.companies.trial_until?` (ทดลองถึง ${esc(co.companies.trial_until)})`:''}</span></div><button class="ghost" id="g-out">ออกจากระบบ</button></div>
+   ${(vans||[]).map(vCard).join('')||'<p class="hint">ยังไม่มีรถ — เพิ่มรถคันแรก</p>'}
+   <details class="g-add"><summary>+ เพิ่มรถ</summary><div class="row2"><div class="field"><label for="v-name">ชื่อรถ / เบอร์รถ</label><input id="v-name" placeholder="เช่น PD1"></div><div class="field"><label for="v-plate">ทะเบียน</label><input id="v-plate"></div></div>
+    <div class="field"><label for="v-site">โรงงานที่วิ่ง</label><input id="v-site" placeholder="เช่น TPAC"></div><button class="primary" id="v-add">เพิ่มรถ</button></details>
+   <p class="g-err danger"></p>
+   <p class="hint">คนขับเปลี่ยน: กด “ปิด” คนเก่า แล้ว “+ คนขับ” คนใหม่ — ข้อมูลของรถยังอยู่ครบ</p>`);
+  $('#g-out').onclick=signOutAll;
+  $('#v-add').onclick=async()=>{const n=$('#v-name').value.trim();if(!n){gErr('ใส่ชื่อรถ');return}
+    const {error}=await sb.rpc('add_van',{p_company:co.company_id,p_name:n,p_plate:$('#v-plate').value.trim()||null,p_site:$('#v-site').value.trim()||null});if(error)gErr(error);else showConsole()};
+  G.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{const v=vans.find(x=>x.id===b.dataset.open);
+    openVan({vanId:v.id,companyId:co.company_id,vanName:v.name,vanCode:v.code,who:user.email,role:'owner'})});
+  G.querySelectorAll('[data-adddrv]').forEach(b=>b.onclick=async()=>{
+    const name=prompt('ชื่อคนขับ');if(!name)return;const phone=prompt('เบอร์โทร (ไม่ใส่ก็ได้)')||'';const pin=prompt('ตั้ง PIN ตัวเลข 4-6 หลัก');if(!pin)return;
+    const {error}=await sb.rpc('add_driver',{p_van:b.dataset.adddrv,p_name:name,p_phone:phone,p_pin:pin});if(error)gErr(error);else showConsole()});
+  G.querySelectorAll('[data-pin]').forEach(b=>b.onclick=async()=>{const pin=prompt('PIN ใหม่ (ตัวเลข 4-6 หลัก) — คนขับคนนี้จะต้องเข้าระบบใหม่');if(!pin)return;
+    const {error}=await sb.rpc('set_driver',{p_driver:b.dataset.pin,p_pin:pin});if(error)gErr(error);else toast('เปลี่ยน PIN แล้ว')});
+  G.querySelectorAll('[data-act2]').forEach(b=>b.onclick=async()=>{const on=b.dataset.act2==='on';
+    if(!on&&!confirm('ปิดคนขับคนนี้? เครื่องของเขาจะออกจากระบบทันที'))return;
+    const {error}=await sb.rpc('set_driver',{p_driver:b.dataset.d,p_active:on});if(error)gErr(error);else showConsole()});
+}
+async function signOutAll(){try{await sb.rpc('driver_logout')}catch{}await sb.auth.signOut();try{sessionStorage.removeItem('openVan')}catch{}location.reload()}
+
+/* ---------- เปิดตารางของรถ ---------- */
+let started=false;
+function openVan(c){
+  Object.assign(CTX,c);try{sessionStorage.setItem('openVan',JSON.stringify(c))}catch{}
+  if(started){location.reload();return}
+  started=true;G.hidden=true;G.innerHTML='';
+  $('#sub').textContent=`${c.vanName} · ${c.who}`;
+  startApp(makeDb(c.vanId,c.companyId));
+}
+function openAccount(){
+  openSheet(`<h3>บัญชี</h3><dl class="sync-st"><dt>รถ</dt><dd>${esc(CTX.vanName)} (รหัส ${esc(CTX.vanCode)})</dd><dt>ผู้ใช้</dt><dd>${esc(CTX.who)} · ${CTX.role==='owner'?'เจ้าของ/แอดมิน':'คนขับ'}</dd></dl>
+   ${CTX.role==='owner'?'<button id="a-console" style="min-height:46px">‹ กลับหน้าบริษัท (รถทั้งหมด)</button>':''}
+   <button id="a-imp" style="min-height:46px">นำเข้าข้อมูลจากแอปเดิม (.json)</button>
+   <button class="danger" id="a-out" style="min-height:46px">ออกจากระบบ</button><button class="ghost" data-act="close">ปิด</button>
+   <input type="file" id="a-file" accept=".json,application/json" hidden>`,sh=>{
+    sh.querySelector('#a-out').onclick=signOutAll;
+    const cb=sh.querySelector('#a-console');if(cb)cb.onclick=()=>{try{sessionStorage.removeItem('openVan')}catch{}location.reload()};
+    sh.querySelector('#a-imp').onclick=()=>sh.querySelector('#a-file').click();
+    sh.querySelector('#a-file').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{await importBackup(JSON.parse(await f.text()))}catch(err){toast('ไฟล์ไม่ถูกต้อง: '+err.message)}};
+  });
+}
+// ไฟล์จากปุ่ม "ส่งออกข้อมูลทั้งหมด" ในแอปเดิม: {kind:'tpac-backup',employees,settings,months:[{id,label,days}],vansync}
+async function importBackup(b){
+  if(b?.kind!=='tpac-backup'){toast('ไม่ใช่ไฟล์สำรองจากแอปเดิม');return}
+  closeSheet();toast('กำลังนำเข้า…');let n=0;
+  const put=async(p,d)=>{await db.doc(p).set(d);n++};
+  for(const e of b.employees||[]){const {id,...rest}=e;await put(`employees/${id}`,rest)}
+  for(const [k,v] of Object.entries(b.settings||{}))await put(`settings/${k}`,v);
+  for(const m of b.months||[]){await put(`months/${m.id}`,{label:m.label||monthLabel(m.id),updatedAt:new Date().toISOString()});
+    for(const [dd,d] of Object.entries(m.days||{}))await put(`months/${m.id}/days/${dd}`,d)}
+  for(const [k,v] of Object.entries(b.vansync||{}))await put(`vansync/${k}`,v);
+  toast(`นำเข้าแล้ว ${n} รายการ`);setTimeout(()=>location.reload(),1200);
+}
+
+async function boot(){
+  if(!sb){gate('<p class="danger">โหลดระบบไม่สำเร็จ — ตรวจอินเทอร์เน็ตแล้วรีเฟรช</p>');return}
+  const {data:{session}}=await sb.auth.getSession();
+  if(!session){showStart();return}
+  if(session.user.is_anonymous){const {data}=await sb.rpc('my_driver');
+    if(data&&data.van_id){openVan({vanId:data.van_id,companyId:data.company_id,vanName:data.van_name,vanCode:data.van_code,who:data.driver_name,role:'driver'});return}
+    await sb.auth.signOut();showDriverLogin();gErr('หมดเวลาการใช้งาน หรือถูกปิดสิทธิ์ — เข้าใหม่อีกครั้ง');return}
+  let ov=null;try{ov=JSON.parse(sessionStorage.getItem('openVan')||'null')}catch{}
+  if(ov&&ov.role==='owner'){openVan(ov);return}
+  showConsole();
+}
+
+function startApp(adapter){
+  db=adapter;dl=DL;
+  render();vanBoot();
+  let gotM=false,gotE=false;const done=()=>{if(gotM&&gotE&&!S.loaded){S.loaded=true;render()}};
+  db.collection('settings').onSnapshot(snap=>{const f=snap.docs.find(d=>d.id==='form');if(f&&!isBusy('settings/form'))S.form={...FORM_DEF,...clone(f.data())};
+    const r=snap.docs.find(d=>d.id==='route');if(r&&!isBusy('settings/route')){S.route={...ROUTE_DEF,...clone(r.data())};solveCache.clear();render()}},()=>{});
+  db.collection('employees').onSnapshot(snap=>{S.emps=snap.docs.map(d=>isBusy(`employees/${d.id}`)&&S.emps.find(x=>x.id===d.id)||({id:d.id,...clone(d.data())})).sort((a,b)=>(a.order??999)-(b.order??999));
+    gotE=true;done();render()},e=>toast(e.message));
+  db.collection('months').onSnapshot(snap=>{
+    S.months=snap.docs.map(d=>({id:d.id,...clone(d.data())})).sort((a,b)=>b.id.localeCompare(a.id));
+    if(!S.month||!S.months.some(m=>m.id===S.month)){const n=new Date();const cur=`${n.getFullYear()}-${pad(n.getMonth()+1)}`;
+      selectMonth(S.months.some(m=>m.id===cur)?cur:S.months[0]?.id||null)}
+    gotM=true;done();render()},e=>toast(e.message));
+}
+boot();
+</script>
+
+</body></html>
