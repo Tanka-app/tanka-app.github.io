@@ -1515,7 +1515,7 @@ async function showConsole(coId,tab){
     const {data:log}=await sb.from('audit_log').select('*').eq('company_id',C).order('at',{ascending:false}).limit(60);
     body=auditRows(log||[],vans);
   }
-  const canCo=co.role==='owner'||co.role==='super';
+  const canCo=!!sc.super;   // แก้ชื่อ/ลบบริษัท: เฉพาะผู้ดูแลระบบ TanKa
   gate(`<div class="g-top"><div><h2>${esc(co.name)}</h2><span class="hint">${esc(user.email)} · ${ROLE_TH[co.role]||co.role}</span></div><button class="ghost" id="g-out">ออกจากระบบ</button></div>
    ${canCo?`<div class="g-row" style="justify-content:flex-start"><button id="co-rn">✏️ แก้ชื่อบริษัท</button><button class="danger" id="co-del">ลบบริษัท</button></div>`:''}
    ${cos.length>1||sc.super||(sc.lines||[]).some(l=>l.access!=='edit')?'<button class="ghost" id="g-home" style="align-self:flex-start">‹ เลือกบริษัท / สายอื่น</button>':''}
