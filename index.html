@@ -1427,6 +1427,8 @@ function auditWhat(a){
     const d=a.what.slice(4);return `ตาราง ${+d.slice(8)}/${+d.slice(5,7)}: ${esc(ch.slice(0,6).join(' · ')||'จัดลำดับใหม่')}${ch.length>6?` …(+${ch.length-6})`:''}`}
   if(a.what.startsWith('employees/'))return `พนักงาน: ${esc((a.after||a.before||{}).name||a.what.slice(10))}${a.after?'':' (ลบ)'}`;
   if(a.what.startsWith('settings/'))return 'ตั้งค่า '+(a.what.endsWith('route')?'เส้นทาง':'ใบขอรถ');
+  if(a.what.startsWith('owner/'))return 'แก้ข้อมูลเจ้าของรถ → '+esc((a.after||{}).name||'');
+  if(a.what.startsWith('driver/'))return 'แก้ข้อมูลคนขับ → '+esc((a.after||{}).name||'');
   if(a.what.startsWith('months/'))return 'เดือน '+esc(a.what.slice(7));
   return esc(a.what);
 }
@@ -1467,7 +1469,7 @@ async function showConsole(coId,tab){
       return `<div class="g-van"><div class="g-vh"><div><b>${esc(v.name)}</b><div class="hint">${veh?`รถ ${esc(vName(veh.id))}${veh.owner_id?` · เจ้าของ ${esc(oName(veh.owner_id))}`:''}`:'ยังไม่ระบุรถ'} · ${v.tenant_id?`ผู้เช่า ${esc((tenants.find(t=>t.id===v.tenant_id)||{}).name||'')}`:'ยังไม่ระบุผู้เช่า'}</div></div>
         <div class="g-code" title="ให้คนขับใช้รหัสนี้">รหัสสาย <b>${v.code}</b></div></div>
         <div class="g-drv">${ds.length?ds.map(d=>`<div class="g-dr ${d.active?'':'off'}"><span>🚐 ${esc(d.display_name)}${d.phone?` <span class="hint">${esc(d.phone)}</span>`:''}${d.active?'':' <span class="hint">(ปิดแล้ว)</span>'}</span>
-          <span>${approver?`<button data-pin="${d.id}">เปลี่ยน PIN</button>`:''}${d.active?`<button data-offd="${d.id}" data-van="${v.id}">ปิด</button>`:approver?`<button data-ond="${d.id}">เปิด</button>`:''}</span></div>`).join(''):'<p class="hint">ยังไม่มีคนขับ</p>'}</div>
+          <span>${approver?`<button data-edrv="${d.id}">แก้ชื่อ</button><button data-pin="${d.id}">เปลี่ยน PIN</button>`:''}${d.active?`<button data-offd="${d.id}" data-van="${v.id}">ปิด</button>`:approver?`<button data-ond="${d.id}">เปิด</button>`:''}</span></div>`).join(''):'<p class="hint">ยังไม่มีคนขับ</p>'}</div>
         <details class="g-sub"><summary>เปลี่ยนรถ / ผู้เช่า / เพิ่มคนขับ${approver?'':' (ส่งขออนุมัติ)'}</summary>
           <div class="row2"><div class="field"><label>รถ</label><select data-f="veh">${opt(vehicles,v.vehicle_id,x=>`${x.plate}${x.owner_id?' · '+oName(x.owner_id):''}`)}</select></div>
           <div class="field"><label>ผู้เช่า</label><select data-f="ten">${opt(tenants,v.tenant_id,x=>x.name)}</select></div></div>
@@ -1482,7 +1484,7 @@ async function showConsole(coId,tab){
     body=(pend.length?pend.map(r=>reqCard(r,ctx,approver)).join(''):'<p class="hint">ไม่มีคำขอรออนุมัติ</p>')+
       (reqs.length>pend.length?`<h3 style="margin-top:14px">ล่าสุด</h3>${reqs.filter(r=>r.status!=='pending').slice(0,20).map(r=>reqCard(r,ctx,false)).join('')}`:'');
   } else if(CON.tab==='fleet'){
-    body=`<h3>เจ้าของรถ</h3>${owners.map(o=>`<div class="g-dr"><span><b>${esc(o.name)}</b>${o.phone?` <span class="hint">${esc(o.phone)}</span>`:''}<br><span class="hint">${o.user_id?'บัญชี: '+esc(people.owner_emails?.[o.id]||'ผูกแล้ว'):'ยังไม่ผูกบัญชี (เจ้าของรถยังเข้าแอปไม่ได้)'}</span></span>${approver&&!o.user_id?`<button data-link="${o.id}">ผูกอีเมล</button>`:''}</div>`).join('')||'<p class="hint">ยังไม่มี</p>'}
+    body=`<h3>เจ้าของรถ</h3>${owners.map(o=>`<div class="g-dr"><span><b>${esc(o.name)}</b>${o.phone?` <span class="hint">${esc(o.phone)}</span>`:''}<br><span class="hint">${o.user_id?'บัญชี: '+esc(people.owner_emails?.[o.id]||'ผูกแล้ว'):'ยังไม่ผูกบัญชี (เจ้าของรถยังเข้าแอปไม่ได้)'}</span></span><span>${approver?`<button data-eown="${o.id}">แก้ไข</button>`:''}${approver&&!o.user_id?`<button data-link="${o.id}">ผูกอีเมล</button>`:''}</span></div>`).join('')||'<p class="hint">ยังไม่มี</p>'}
       <h3 style="margin-top:14px">รถ</h3>${vehicles.map(x=>`<div class="g-dr"><span><b>${esc(x.plate)}</b> ${esc(x.name||'')}<br><span class="hint">${x.owner_id?'เจ้าของ '+esc(oName(x.owner_id)):'ไม่ระบุเจ้าของ'} · วิ่ง ${vans.filter(v=>v.vehicle_id===x.id).map(v=>esc(v.name)).join(', ')||'—'}</span></span></div>`).join('')||'<p class="hint">ยังไม่มี</p>'}`;
     if(approver)body+=gForm('f-own',['+ เพิ่มเจ้าของรถ',`<div class="row2"><div class="field"><label>ชื่อ</label><input id="o-name"></div><div class="field"><label>เบอร์</label><input id="o-phone" inputmode="tel"></div></div>
       <div class="field"><label>อีเมลที่เจ้าของรถใช้เข้าแอป (ไม่ใส่ก็ได้ — ใส่ทีหลังได้)</label><input id="o-mail" type="email"></div><button class="primary" id="o-add">เพิ่ม</button>`])+
@@ -1531,6 +1533,12 @@ async function showConsole(coId,tab){
     run(()=>rpc('add_vehicle',{p_company:C,p_plate:pl,p_name:$('#x-name').value.trim()||null,p_owner:$('#x-own').value||null}),'เพิ่มรถแล้ว')});
   on('t-add',()=>{const n=$('#t-name').value.trim();if(!n){gErr('ใส่ชื่อผู้เช่า');return}run(()=>rpc('add_tenant',{p_company:C,p_name:n}),'เพิ่มแล้ว')});
   on('m-add',()=>{const m=$('#m-mail').value.trim();if(!m){gErr('ใส่อีเมล');return}run(()=>rpc('add_member',{p_company:C,p_email:m,p_role:$('#m-role').value}),'เพิ่มแล้ว')});
+  G.querySelectorAll('[data-eown]').forEach(b=>b.onclick=()=>{const o=owners.find(x=>x.id===b.dataset.eown);
+    const n=prompt('ชื่อเจ้าของรถ',o.name);if(n===null||!n.trim())return;const ph=prompt('เบอร์โทร (ว่างได้)',o.phone||'');if(ph===null)return;
+    run(()=>rpc('update_vehicle_owner',{p_owner:o.id,p_name:n.trim(),p_phone:ph.trim()||null}),'แก้ไขแล้ว')});
+  G.querySelectorAll('[data-edrv]').forEach(b=>b.onclick=()=>{const d=drivers.find(x=>x.id===b.dataset.edrv);
+    const n=prompt('ชื่อคนขับ',d.display_name);if(n===null||!n.trim())return;const ph=prompt('เบอร์โทร (ว่างได้)',d.phone||'');if(ph===null)return;
+    run(()=>rpc('update_driver_info',{p_driver:d.id,p_name:n.trim(),p_phone:ph.trim()||null}),'แก้ไขแล้ว')});
   G.querySelectorAll('[data-link]').forEach(b=>b.onclick=()=>{const m=prompt('อีเมลที่เจ้าของรถใช้เข้าแอป');if(m)run(()=>rpc('link_vehicle_owner',{p_owner:b.dataset.link,p_email:m}),'ผูกแล้ว')});
   G.querySelectorAll('[data-tvadd]').forEach(b=>b.onclick=()=>{const m=G.querySelector(`[data-tv="${b.dataset.tvadd}"]`).value.trim();if(!m){gErr('ใส่อีเมล');return}
     run(()=>rpc('add_tenant_viewer',{p_tenant:b.dataset.tvadd,p_email:m}),'เพิ่มผู้ดูแล้ว')});
