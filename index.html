@@ -360,7 +360,8 @@ function saveEmp(e){const {id,...rest}=e;render();return saveDoc(`employees/${id
 
 function selectMonth(id){
   if(S.unsub){S.unsub();S.unsub=null}
-  S.month=id;S.days={};S.day=null;
+  if(id!==S.month){S.days={};S.day=null}
+  S.month=id;
   if(!id){render();return}
   if(db){
     S.unsub=db.collection(`months/${id}/days`).onSnapshot(snap=>{
@@ -371,6 +372,7 @@ function selectMonth(id){
 }
 function pickDay(){
   const keys=Object.keys(S.days).sort();
+  if(S.dayWant&&S.dayWant.m===S.month&&S.days[S.dayWant.d]){S.day=S.dayWant.d;return}  // วันที่ผู้ใช้เลือกเอง — ไม่ให้ซิงก์ย้ายไปวันอื่น
   if(S.day&&S.days[S.day])return;
   const now=new Date();const td=`${now.getFullYear()}-${pad(now.getMonth()+1)}`;
   S.day=(td===S.month&&S.days[pad(now.getDate())])?pad(now.getDate()):keys[0]||null;
@@ -488,8 +490,14 @@ function render(){
   } else if(S.month){
     h+= S.tab==='day'?dayView(): S.tab==='sum'?sumView(): empView();
   }
+  const os=main.querySelector('.strip'),oL=os?os.scrollLeft:null,wY=window.scrollY;
   main.innerHTML=h;
-  const sel=main.querySelector('.chip[aria-pressed="true"]');if(sel&&!render.scrolled){sel.scrollIntoView({inline:'center',block:'nearest'});render.scrolled=true}
+  const st=main.querySelector('.strip'),sel=st&&st.querySelector('.chip[aria-pressed="true"]');
+  if(st){
+    if(sel&&(!render.scrolled||oL===null)){st.scrollLeft=Math.max(0,sel.offsetLeft-st.offsetLeft-(st.clientWidth-sel.offsetWidth)/2);render.scrolled=true}
+    else if(oL!==null)st.scrollLeft=oL;   // วาดใหม่จากการซิงก์ — แถบวันที่อยู่ที่เดิม ไม่เด้งกลับวันที่ 1
+  }
+  if(Math.abs(window.scrollY-wY)>1)window.scrollTo(0,wY);
 }
 
 function pendingHtml(){
@@ -1051,10 +1059,10 @@ document.addEventListener('click',e=>{
   if(a==='scrim'&&e.target!==t)return;
   const s=t.dataset.shift,i=+t.dataset.i;const d=S.days[S.day];
   switch(a){
-    case 'day': if(t.dataset.day){S.day=t.dataset.day;render.scrolled=false;render()} break;
+    case 'day': if(t.dataset.day){S.day=t.dataset.day;S.dayWant={m:S.month,d:S.day};render.scrolled=true;render()} break;
     case 'mshift': S.mShift=s;render();break;
     case 'form': openFormSetup();break;
-    case 'goto': S.day=t.dataset.day;S.tab='day';render.scrolled=false;render();window.scrollTo({top:0});break;
+    case 'goto': S.day=t.dataset.day;S.dayWant={m:S.month,d:S.day};S.tab='day';render.scrolled=false;render();window.scrollTo({top:0});break;
     case 'st': if(d[s][i].status!==t.dataset.v){d[s][i].status=t.dataset.v;d[s][i].stAt=new Date().toISOString();saveDay(S.day)} break;
     case 'stClear': d[s][i].status='';d[s][i].stAt=new Date().toISOString();saveDay(S.day);break;
     case 'back': d[s][i].back=!d[s][i].back;d[s][i].backAt=new Date().toISOString();saveDay(S.day);break;
