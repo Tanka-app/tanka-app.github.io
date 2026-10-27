@@ -1427,8 +1427,13 @@ function auditWhat(a){
     const d=a.what.slice(4);return `ตาราง ${+d.slice(8)}/${+d.slice(5,7)}: ${esc(ch.slice(0,6).join(' · ')||'จัดลำดับใหม่')}${ch.length>6?` …(+${ch.length-6})`:''}`}
   if(a.what.startsWith('employees/'))return `พนักงาน: ${esc((a.after||a.before||{}).name||a.what.slice(10))}${a.after?'':' (ลบ)'}`;
   if(a.what.startsWith('settings/'))return 'ตั้งค่า '+(a.what.endsWith('route')?'เส้นทาง':'ใบขอรถ');
-  if(a.what.startsWith('owner/'))return 'แก้ข้อมูลเจ้าของรถ → '+esc((a.after||{}).name||'');
-  if(a.what.startsWith('driver/'))return 'แก้ข้อมูลคนขับ → '+esc((a.after||{}).name||'');
+  const del=!a.after,nm=x=>esc((x||{}).name||(x||{}).plate||'');
+  if(a.what.startsWith('owner/'))return del?'ลบเจ้าของรถ '+nm(a.before):(a.after.unlink?'เลิกผูกอีเมลเจ้าของรถ':'แก้ข้อมูลเจ้าของรถ → '+nm(a.after));
+  if(a.what.startsWith('vehicle/'))return del?'ลบรถ '+nm(a.before):'แก้ข้อมูลรถ → '+nm(a.after);
+  if(a.what.startsWith('tenant/'))return del?('viewer' in (a.before||{})?'เอาผู้ดูของผู้เช่าออก':'ลบผู้เช่า '+nm(a.before)):'แก้ชื่อผู้เช่า → '+nm(a.after);
+  if(a.what.startsWith('line/'))return del?'ลบสายถาวร '+nm(a.before):('active' in (a.after||{})?(a.after.active?'เปิดสาย':'ปิดสาย'):'แก้ชื่อสาย → '+nm(a.after));
+  if(a.what.startsWith('member/'))return del?'เอาทีมงานออก':'เปลี่ยนบทบาททีมงาน → '+esc(ROLE_TH[(a.after||{}).role]||'');
+  if(a.what.startsWith('driver/'))return del?'ลบคนขับ '+nm(a.before):'แก้ข้อมูลคนขับ → '+nm(a.after);
   if(a.what.startsWith('months/'))return 'เดือน '+esc(a.what.slice(7));
   return esc(a.what);
 }
@@ -1465,18 +1470,20 @@ async function showConsole(coId,tab){
   const tabs=[['lines','สาย'],['reqs',`คำขอ${pend.length?` (${pend.length})`:''}`],['fleet','รถ/เจ้าของ'],['tenants','ผู้เช่า'],['team','ทีมงาน'],['log','ประวัติ']];
   let body='';
   if(CON.tab==='lines'){
-    body=vans.map(v=>{const ds=drivers.filter(d=>d.van_id===v.id);const veh=vehicles.find(x=>x.id===v.vehicle_id);
+    body=vans.filter(v=>v.active!==false).map(v=>{const ds=drivers.filter(d=>d.van_id===v.id);const veh=vehicles.find(x=>x.id===v.vehicle_id);
       return `<div class="g-van"><div class="g-vh"><div><b>${esc(v.name)}</b><div class="hint">${veh?`รถ ${esc(vName(veh.id))}${veh.owner_id?` · เจ้าของ ${esc(oName(veh.owner_id))}`:''}`:'ยังไม่ระบุรถ'} · ${v.tenant_id?`ผู้เช่า ${esc((tenants.find(t=>t.id===v.tenant_id)||{}).name||'')}`:'ยังไม่ระบุผู้เช่า'}</div></div>
         <div class="g-code" title="ให้คนขับใช้รหัสนี้">รหัสสาย <b>${v.code}</b></div></div>
         <div class="g-drv">${ds.length?ds.map(d=>`<div class="g-dr ${d.active?'':'off'}"><span>🚐 ${esc(d.display_name)}${d.phone?` <span class="hint">${esc(d.phone)}</span>`:''}${d.active?'':' <span class="hint">(ปิดแล้ว)</span>'}</span>
-          <span>${approver?`<button data-edrv="${d.id}">แก้ชื่อ</button><button data-pin="${d.id}">เปลี่ยน PIN</button>`:''}${d.active?`<button data-offd="${d.id}" data-van="${v.id}">ปิด</button>`:approver?`<button data-ond="${d.id}">เปิด</button>`:''}</span></div>`).join(''):'<p class="hint">ยังไม่มีคนขับ</p>'}</div>
+          <span>${approver?`<button data-edrv="${d.id}">แก้ชื่อ</button><button data-pin="${d.id}">เปลี่ยน PIN</button>`:''}${d.active?`<button data-offd="${d.id}" data-van="${v.id}">ปิด</button>`:approver?`<button data-ond="${d.id}">เปิด</button><button class="danger" data-deld="${d.id}">ลบ</button>`:''}</span></div>`).join(''):'<p class="hint">ยังไม่มีคนขับ</p>'}</div>
         <details class="g-sub"><summary>เปลี่ยนรถ / ผู้เช่า / เพิ่มคนขับ${approver?'':' (ส่งขออนุมัติ)'}</summary>
           <div class="row2"><div class="field"><label>รถ</label><select data-f="veh">${opt(vehicles,v.vehicle_id,x=>`${x.plate}${x.owner_id?' · '+oName(x.owner_id):''}`)}</select></div>
           <div class="field"><label>ผู้เช่า</label><select data-f="ten">${opt(tenants,v.tenant_id,x=>x.name)}</select></div></div>
           <div class="row2"><div class="field"><label>คนขับใหม่ (ชื่อ)</label><input data-f="dn"></div><div class="field"><label>เบอร์</label><input data-f="dp" inputmode="tel"></div></div>
           <div class="field"><label>PIN คนขับใหม่ (ตัวเลข 4–6 หลัก)</label><input data-f="pin" inputmode="numeric" maxlength="6"></div>
           <button class="primary" data-assign="${v.id}">${approver?'บันทึก':'ส่งขออนุมัติ'}</button></details>
-        <div class="g-row"><button class="primary" data-open="${v.id}">เปิดตารางสายนี้ ›</button></div></div>`}).join('')||'<p class="hint">ยังไม่มีสาย</p>';
+        <div class="g-row">${approver?`<button class="ghost" data-rnline="${v.id}">แก้ชื่อสาย</button><button class="ghost danger" data-closeline="${v.id}">ปิดสาย</button>`:''}<button class="primary" data-open="${v.id}">เปิดตารางสายนี้ ›</button></div></div>`}).join('')||'<p class="hint">ยังไม่มีสาย</p>';
+    const closed=vans.filter(v=>v.active===false);
+    if(closed.length)body+=`<h3 style="margin-top:14px">สายที่ปิดไว้ (ข้อมูลยังอยู่)</h3>${closed.map(v=>`<div class="g-dr off"><span><b>${esc(v.name)}</b> <span class="hint">รหัส ${v.code}</span></span><span>${approver?`<button data-reopen="${v.id}">เปิดใหม่</button><button class="danger" data-delline="${v.id}">ลบถาวร</button>`:''}</span></div>`).join('')}`;
     if(approver)body+=gForm('f-line',['+ เพิ่มสาย',`<div class="field"><label>ชื่อสาย</label><input id="l-name" placeholder="เช่น TPAC PD1"></div>
       <div class="row2"><div class="field"><label>รถ</label><select id="l-veh">${opt(vehicles,null,x=>`${x.plate}${x.owner_id?' · '+oName(x.owner_id):''}`)}</select></div><div class="field"><label>ผู้เช่า</label><select id="l-ten">${opt(tenants,null,x=>x.name)}</select></div></div>
       <button class="primary" id="l-add">เพิ่มสาย</button><p class="hint">เพิ่มรถ/ผู้เช่าก่อนได้ที่แท็บ "รถ/เจ้าของ" และ "ผู้เช่า"</p>`]);
@@ -1484,19 +1491,23 @@ async function showConsole(coId,tab){
     body=(pend.length?pend.map(r=>reqCard(r,ctx,approver)).join(''):'<p class="hint">ไม่มีคำขอรออนุมัติ</p>')+
       (reqs.length>pend.length?`<h3 style="margin-top:14px">ล่าสุด</h3>${reqs.filter(r=>r.status!=='pending').slice(0,20).map(r=>reqCard(r,ctx,false)).join('')}`:'');
   } else if(CON.tab==='fleet'){
-    body=`<h3>เจ้าของรถ</h3>${owners.map(o=>`<div class="g-dr"><span><b>${esc(o.name)}</b>${o.phone?` <span class="hint">${esc(o.phone)}</span>`:''}<br><span class="hint">${o.user_id?'บัญชี: '+esc(people.owner_emails?.[o.id]||'ผูกแล้ว'):'ยังไม่ผูกบัญชี (เจ้าของรถยังเข้าแอปไม่ได้)'}</span></span><span>${approver?`<button data-eown="${o.id}">แก้ไข</button>`:''}${approver&&!o.user_id?`<button data-link="${o.id}">ผูกอีเมล</button>`:''}</span></div>`).join('')||'<p class="hint">ยังไม่มี</p>'}
-      <h3 style="margin-top:14px">รถ</h3>${vehicles.map(x=>`<div class="g-dr"><span><b>${esc(x.plate)}</b> ${esc(x.name||'')}<br><span class="hint">${x.owner_id?'เจ้าของ '+esc(oName(x.owner_id)):'ไม่ระบุเจ้าของ'} · วิ่ง ${vans.filter(v=>v.vehicle_id===x.id).map(v=>esc(v.name)).join(', ')||'—'}</span></span></div>`).join('')||'<p class="hint">ยังไม่มี</p>'}`;
+    body=`<h3>เจ้าของรถ</h3>${owners.map(o=>`<div class="g-dr"><span><b>${esc(o.name)}</b>${o.phone?` <span class="hint">${esc(o.phone)}</span>`:''}<br><span class="hint">${o.user_id?'บัญชี: '+esc(people.owner_emails?.[o.id]||'ผูกแล้ว'):'ยังไม่ผูกบัญชี (เจ้าของรถยังเข้าแอปไม่ได้)'}</span></span><span>${approver?`<button data-eown="${o.id}">แก้ไข</button>${o.user_id?`<button data-unlink="${o.id}">เลิกผูกอีเมล</button>`:`<button data-link="${o.id}">ผูกอีเมล</button>`}<button class="danger" data-delown="${o.id}">ลบ</button>`:''}</span></div>`).join('')||'<p class="hint">ยังไม่มี</p>'}
+      <h3 style="margin-top:14px">รถ</h3>${vehicles.map(x=>`<div class="g-dr" style="flex-direction:column;align-items:stretch"><span><b>${esc(x.plate)}</b> ${esc(x.name||'')}<br><span class="hint">${x.owner_id?'เจ้าของ '+esc(oName(x.owner_id)):'ไม่ระบุเจ้าของ'} · วิ่ง ${vans.filter(v=>v.vehicle_id===x.id).map(v=>esc(v.name)).join(', ')||'—'}</span></span>
+        ${approver?`<details class="g-sub"><summary>แก้ไข / ลบ</summary><div class="row2"><div class="field"><label>ทะเบียน</label><input data-vf="plate" value="${esc(x.plate)}"></div><div class="field"><label>ชื่อ/เบอร์รถ</label><input data-vf="name" value="${esc(x.name||'')}"></div></div>
+          <div class="field"><label>เจ้าของรถ</label><select data-vf="own">${opt(owners,x.owner_id,o=>o.name)}</select></div>
+          <div class="g-row"><button class="danger" data-delveh="${x.id}">ลบรถ</button><button class="primary" data-saveveh="${x.id}">บันทึก</button></div></details>`:''}</div>`).join('')||'<p class="hint">ยังไม่มี</p>'}`;
     if(approver)body+=gForm('f-own',['+ เพิ่มเจ้าของรถ',`<div class="row2"><div class="field"><label>ชื่อ</label><input id="o-name"></div><div class="field"><label>เบอร์</label><input id="o-phone" inputmode="tel"></div></div>
       <div class="field"><label>อีเมลที่เจ้าของรถใช้เข้าแอป (ไม่ใส่ก็ได้ — ใส่ทีหลังได้)</label><input id="o-mail" type="email"></div><button class="primary" id="o-add">เพิ่ม</button>`])+
       gForm('f-veh',['+ เพิ่มรถ',`<div class="row2"><div class="field"><label>ทะเบียน</label><input id="x-plate"></div><div class="field"><label>ชื่อ/เบอร์รถ</label><input id="x-name"></div></div>
       <div class="field"><label>เจ้าของรถ</label><select id="x-own">${opt(owners,null,o=>o.name)}</select></div><button class="primary" id="x-add">เพิ่มรถ</button>`]);
   } else if(CON.tab==='tenants'){
-    body=tenants.map(t=>`<div class="g-van"><b>${esc(t.name)}</b><div class="hint">สาย: ${vans.filter(v=>v.tenant_id===t.id).map(v=>esc(v.name)).join(', ')||'—'}</div>
-      <div class="hint">ผู้ดู (ดูอย่างเดียว): ${(people.tenant_viewers||[]).filter(x=>x.tenant_id===t.id).map(x=>esc(x.email||'')).join(', ')||'—'}</div>
+    body=tenants.map(t=>`<div class="g-van"><div class="g-vh"><b>${esc(t.name)}</b>${approver?`<span><button data-rnten="${t.id}">แก้ชื่อ</button><button class="danger" data-delten="${t.id}">ลบ</button></span>`:''}</div><div class="hint">สาย: ${vans.filter(v=>v.tenant_id===t.id).map(v=>esc(v.name)).join(', ')||'—'}</div>
+      <div class="hint">ผู้ดู (ดูอย่างเดียว):</div>${(people.tenant_viewers||[]).filter(x=>x.tenant_id===t.id).map(x=>`<div class="g-dr"><span>${esc(x.email||'')}</span>${approver?`<button class="danger" data-rmtv="${t.id}" data-u="${x.user_id}">เอาออก</button>`:''}</div>`).join('')||'<div class="hint">—</div>'}
       ${approver?`<div class="g-row"><input data-tv="${t.id}" type="email" placeholder="อีเมลผู้ดูของผู้เช่า" style="flex:1"><button data-tvadd="${t.id}">เพิ่มผู้ดู</button></div>`:''}</div>`).join('')||'<p class="hint">ยังไม่มีผู้เช่า</p>';
     if(approver)body+=gForm('f-ten',['+ เพิ่มบริษัทผู้เช่า',`<div class="field"><label>ชื่อบริษัทผู้เช่า</label><input id="t-name" placeholder="เช่น TPAC"></div><button class="primary" id="t-add">เพิ่ม</button>`]);
   } else if(CON.tab==='team'){
-    body=(people.members||[]).map(m=>`<div class="g-dr"><span>${esc(m.email||m.user_id)}<br><span class="hint">${ROLE_TH[m.role]||m.role}</span></span></div>`).join('');
+    body=(people.members||[]).map(m=>`<div class="g-dr"><span>${esc(m.email||m.user_id)}${m.user_id===user.id?' (คุณ)':''}<br><span class="hint">${ROLE_TH[m.role]||m.role}</span></span>
+      ${approver&&m.role!=='owner'?`<span><button data-role="${m.user_id}" data-to="${m.role==='admin'?'staff':'admin'}">${m.role==='admin'?'เปลี่ยนเป็นพนักงาน':'เปลี่ยนเป็นแอดมิน'}</button><button class="danger" data-rmmem="${m.user_id}">เอาออก</button></span>`:''}</div>`).join('');
     if(approver)body+=gForm('f-mem',['+ เพิ่มทีมงาน',`<div class="field"><label>อีเมล (ต้องสมัครในแอปแล้ว)</label><input id="m-mail" type="email"></div>
       <div class="field"><label>บทบาท</label><select id="m-role"><option value="staff">พนักงาน — แก้ได้แต่ต้องขออนุมัติ</option><option value="admin">แอดมิน — อนุมัติได้</option></select></div><button class="primary" id="m-add">เพิ่ม</button>`]);
   } else if(CON.tab==='log'){
@@ -1539,6 +1550,24 @@ async function showConsole(coId,tab){
   G.querySelectorAll('[data-edrv]').forEach(b=>b.onclick=()=>{const d=drivers.find(x=>x.id===b.dataset.edrv);
     const n=prompt('ชื่อคนขับ',d.display_name);if(n===null||!n.trim())return;const ph=prompt('เบอร์โทร (ว่างได้)',d.phone||'');if(ph===null)return;
     run(()=>rpc('update_driver_info',{p_driver:d.id,p_name:n.trim(),p_phone:ph.trim()||null}),'แก้ไขแล้ว')});
+  const confirmRun=(q,fn,msg)=>{if(confirm(q))run(fn,msg)};
+  G.querySelectorAll('[data-rnline]').forEach(b=>b.onclick=()=>{const v=vans.find(x=>x.id===b.dataset.rnline);const n=prompt('ชื่อสาย',v.name);if(n&&n.trim())run(()=>rpc('update_line',{p_van:v.id,p_name:n.trim()}),'แก้ชื่อแล้ว')});
+  G.querySelectorAll('[data-closeline]').forEach(b=>b.onclick=()=>confirmRun('ปิดสายนี้? คนขับจะเข้าไม่ได้และจอจะหยุดซิงก์ — ข้อมูลยังอยู่ เปิดใหม่ได้',()=>rpc('set_line_active',{p_van:b.dataset.closeline,p_active:false}),'ปิดสายแล้ว'));
+  G.querySelectorAll('[data-reopen]').forEach(b=>b.onclick=()=>run(()=>rpc('set_line_active',{p_van:b.dataset.reopen,p_active:true}),'เปิดสายแล้ว'));
+  G.querySelectorAll('[data-delline]').forEach(b=>b.onclick=()=>{const v=vans.find(x=>x.id===b.dataset.delline);
+    const n=prompt(`ลบถาวร: ตาราง พนักงาน คนขับ และจอของสาย "${v.name}" จะหายทั้งหมด กู้คืนไม่ได้\nพิมพ์ชื่อสายให้ตรงเพื่อยืนยัน`);if(n===null)return;
+    run(()=>rpc('delete_line',{p_van:v.id,p_confirm_name:n}),'ลบสายแล้ว')});
+  G.querySelectorAll('[data-deld]').forEach(b=>b.onclick=()=>confirmRun('ลบคนขับคนนี้ถาวร?',()=>rpc('delete_driver',{p_driver:b.dataset.deld}),'ลบแล้ว'));
+  G.querySelectorAll('[data-delown]').forEach(b=>b.onclick=()=>confirmRun('ลบเจ้าของรถคนนี้? รถของเขาจะกลายเป็น "ไม่ระบุเจ้าของ"',()=>rpc('delete_vehicle_owner',{p_owner:b.dataset.delown}),'ลบแล้ว'));
+  G.querySelectorAll('[data-unlink]').forEach(b=>b.onclick=()=>confirmRun('เลิกผูกอีเมล? เจ้าของรถจะเข้าแอปดูสายไม่ได้จนกว่าจะผูกใหม่',()=>rpc('unlink_vehicle_owner',{p_owner:b.dataset.unlink}),'เลิกผูกแล้ว'));
+  G.querySelectorAll('[data-saveveh]').forEach(b=>b.onclick=()=>{const box=b.closest('details'),f=k=>box.querySelector(`[data-vf="${k}"]`).value.trim();
+    if(!f('plate')){gErr('ใส่ทะเบียน');return}run(()=>rpc('update_vehicle',{p_vehicle:b.dataset.saveveh,p_plate:f('plate'),p_name:f('name')||null,p_owner:f('own')||null}),'บันทึกแล้ว')});
+  G.querySelectorAll('[data-delveh]').forEach(b=>b.onclick=()=>confirmRun('ลบรถคันนี้? สายที่ใช้รถคันนี้จะกลายเป็น "ยังไม่ระบุรถ"',()=>rpc('delete_vehicle',{p_vehicle:b.dataset.delveh}),'ลบแล้ว'));
+  G.querySelectorAll('[data-rnten]').forEach(b=>b.onclick=()=>{const t=tenants.find(x=>x.id===b.dataset.rnten);const n=prompt('ชื่อบริษัทผู้เช่า',t.name);if(n&&n.trim())run(()=>rpc('update_tenant',{p_tenant:t.id,p_name:n.trim()}),'แก้ชื่อแล้ว')});
+  G.querySelectorAll('[data-delten]').forEach(b=>b.onclick=()=>confirmRun('ลบผู้เช่ารายนี้? ผู้ดูทั้งหมดจะถูกเอาออก และสายจะกลายเป็น "ยังไม่ระบุผู้เช่า"',()=>rpc('delete_tenant',{p_tenant:b.dataset.delten}),'ลบแล้ว'));
+  G.querySelectorAll('[data-rmtv]').forEach(b=>b.onclick=()=>confirmRun('เอาผู้ดูคนนี้ออก?',()=>rpc('remove_tenant_viewer',{p_tenant:b.dataset.rmtv,p_user:b.dataset.u}),'เอาออกแล้ว'));
+  G.querySelectorAll('[data-role]').forEach(b=>b.onclick=()=>run(()=>rpc('set_member_role',{p_company:C,p_user:b.dataset.role,p_role:b.dataset.to}),'เปลี่ยนบทบาทแล้ว'));
+  G.querySelectorAll('[data-rmmem]').forEach(b=>b.onclick=()=>confirmRun('เอาคนนี้ออกจากบริษัท?',()=>rpc('remove_member',{p_company:C,p_user:b.dataset.rmmem}),'เอาออกแล้ว'));
   G.querySelectorAll('[data-link]').forEach(b=>b.onclick=()=>{const m=prompt('อีเมลที่เจ้าของรถใช้เข้าแอป');if(m)run(()=>rpc('link_vehicle_owner',{p_owner:b.dataset.link,p_email:m}),'ผูกแล้ว')});
   G.querySelectorAll('[data-tvadd]').forEach(b=>b.onclick=()=>{const m=G.querySelector(`[data-tv="${b.dataset.tvadd}"]`).value.trim();if(!m){gErr('ใส่อีเมล');return}
     run(()=>rpc('add_tenant_viewer',{p_tenant:b.dataset.tvadd,p_email:m}),'เพิ่มผู้ดูแล้ว')});
