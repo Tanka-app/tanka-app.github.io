@@ -1432,6 +1432,7 @@ function auditWhat(a){
   if(a.what.startsWith('vehicle/'))return del?'ลบรถ '+nm(a.before):'แก้ข้อมูลรถ → '+nm(a.after);
   if(a.what.startsWith('tenant/'))return del?('viewer' in (a.before||{})?'เอาผู้ดูของผู้เช่าออก':'ลบผู้เช่า '+nm(a.before)):'แก้ชื่อผู้เช่า → '+nm(a.after);
   if(a.what.startsWith('line/'))return del?'ลบสายถาวร '+nm(a.before):('active' in (a.after||{})?(a.after.active?'เปิดสาย':'ปิดสาย'):'แก้ชื่อสาย → '+nm(a.after));
+  if(a.what.startsWith('company/'))return 'แก้ชื่อบริษัท → '+nm(a.after);
   if(a.what.startsWith('member/'))return del?'เอาทีมงานออก':'เปลี่ยนบทบาททีมงาน → '+esc(ROLE_TH[(a.after||{}).role]||'');
   if(a.what.startsWith('driver/'))return del?'ลบคนขับ '+nm(a.before):'แก้ข้อมูลคนขับ → '+nm(a.after);
   if(a.what.startsWith('months/'))return 'เดือน '+esc(a.what.slice(7));
@@ -1514,7 +1515,9 @@ async function showConsole(coId,tab){
     const {data:log}=await sb.from('audit_log').select('*').eq('company_id',C).order('at',{ascending:false}).limit(60);
     body=auditRows(log||[],vans);
   }
+  const canCo=co.role==='owner'||co.role==='super';
   gate(`<div class="g-top"><div><h2>${esc(co.name)}</h2><span class="hint">${esc(user.email)} · ${ROLE_TH[co.role]||co.role}</span></div><button class="ghost" id="g-out">ออกจากระบบ</button></div>
+   ${canCo?`<div class="g-row" style="justify-content:flex-start"><button id="co-rn">✏️ แก้ชื่อบริษัท</button><button class="danger" id="co-del">ลบบริษัท</button></div>`:''}
    ${cos.length>1||sc.super||(sc.lines||[]).some(l=>l.access!=='edit')?'<button class="ghost" id="g-home" style="align-self:flex-start">‹ เลือกบริษัท / สายอื่น</button>':''}
    <div class="g-tabs">${tabs.map(([k,l])=>`<button class="${CON.tab===k?'on':''}" data-tab="${k}">${l}</button>`).join('')}</div>
    ${body}<p class="g-err danger"></p>`);
@@ -1536,6 +1539,9 @@ async function showConsole(coId,tab){
     const sum=[p.vehicle_id!==undefined?'เปลี่ยนรถ':'',p.tenant_id!==undefined?'เปลี่ยนผู้เช่า':'',p.new_driver?'เพิ่มคนขับ '+p.new_driver.name:''].filter(Boolean).join(' · ');
     run(()=>rpc('request_change',{p_van:v.id,p_kind:'line_assign',p_payload:p,p_summary:sum}),approver?'บันทึกแล้ว':'ส่งขออนุมัติแล้ว')});
   const on=(id,fn)=>{const el=$('#'+id);if(el)el.onclick=fn};
+  on('co-rn',()=>{const n=prompt('ชื่อบริษัท',co.name);if(n&&n.trim()&&n.trim()!==co.name)run(()=>rpc('update_company',{p_company:C,p_name:n.trim()}),'แก้ชื่อบริษัทแล้ว')});
+  on('co-del',async()=>{const n=prompt(`ลบบริษัท "${co.name}" ถาวร?\nสาย ตาราง พนักงาน คนขับ รถ เจ้าของรถ ผู้เช่า และคำขอทั้งหมดของบริษัทนี้จะหาย กู้คืนไม่ได้\n\nพิมพ์ชื่อบริษัทให้ตรงเพื่อยืนยัน`);if(n===null)return;
+    try{await rpc('delete_company',{p_company:C,p_confirm_name:n});toast('ลบบริษัทแล้ว');CON.coId=null;showConsole()}catch(e){gErr(e)}});
   on('l-add',()=>{const n=$('#l-name').value.trim();if(!n){gErr('ใส่ชื่อสาย');return}
     run(()=>rpc('add_van',{p_company:C,p_name:n,p_plate:null,p_site:null,p_vehicle:$('#l-veh').value||null,p_tenant:$('#l-ten').value||null}),'เพิ่มสายแล้ว')});
   on('o-add',()=>{const n=$('#o-name').value.trim();if(!n){gErr('ใส่ชื่อเจ้าของรถ');return}
@@ -1578,7 +1584,7 @@ function showHome(sc,user){
   const cos=sc.companies||[];const mine=new Set(cos.map(c=>c.id));
   const others=(sc.lines||[]).filter(l=>l.access!=='edit'||!mine.has(l.company_id));
   gate(`<div class="g-top"><div><h2>สวัสดี</h2><span class="hint">${esc(user.email)}${sc.super?' · ผู้ดูแลระบบ TanKa':''}</span></div><button class="ghost" id="g-out">ออกจากระบบ</button></div>
-   ${cos.length?`<h3>บริษัท</h3>${cos.map(c=>`<button class="g-big" data-co="${c.id}" style="text-align:left">🏢 ${esc(c.name)}<br><span class="hint">${ROLE_TH[c.role]||c.role}</span></button>`).join('')}`:''}
+   ${cos.length?`<h3>บริษัท</h3>${cos.map(c=>`<button class="g-big" data-co="${c.id}" style="text-align:left">🏢 ${esc(c.name)}<br><span class="hint">${ROLE_TH[c.role]||c.role}${cos.filter(x=>x.name===c.name).length>1?` · รหัส ${c.id.slice(0,6)}`:''}</span></button>`).join('')}`:''}
    ${others.length?`<h3>สายที่ดูได้</h3>${others.map(l=>`<button class="g-big" data-line="${l.id}" style="text-align:left">🚐 ${esc(l.name)}${l.plate?' · '+esc(l.plate):''}<br><span class="hint">${l.tenant?'ผู้เช่า '+esc(l.tenant)+' · ':''}${l.access==='owner'?'เจ้าของรถ (แก้ = ขออนุมัติ)':'ดูอย่างเดียว'}</span></button>`).join('')}`:''}
    ${!cos.length&&!others.length?'<p class="hint">บัญชีนี้ยังไม่ได้อยู่ในบริษัทไหน — ถ้าคุณเป็นเจ้าของรถหรือผู้เช่า ให้บริษัทคาร์เรนท์เพิ่มอีเมลนี้ หรือสร้างบริษัทใหม่ด้านล่าง</p>':''}
    ${gForm('f-co',['+ สร้างบริษัทคาร์เรนท์ใหม่',`<div class="field"><label for="g-co">ชื่อบริษัท</label><input id="g-co" placeholder="เช่น บริษัท ... คาร์เรนท์"></div><button class="primary" id="g-mk">สร้าง</button>`])}
