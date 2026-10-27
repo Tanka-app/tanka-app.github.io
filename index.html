@@ -262,6 +262,19 @@ ol.dl{margin:6px 0 8px;padding-left:22px;font-size:14px}
 .steps{margin:0;padding-left:20px;font-size:14.5px;display:flex;flex-direction:column;gap:4px}
 /* gate (login / owner console) */
 .netbar{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 6px);z-index:35;background:var(--accent);color:var(--accent-ink);font-size:13.5px;padding:6px 14px;border-radius:999px;max-width:calc(100% - 24px);text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+body.ro .acts,body.ro .shift-h .btns,body.ro .btn-form,body.ro #btnImport,body.ro #btnNew,body.ro #btnSet,body.ro #btnAll,body.ro #btnSync,
+body.ro #m-imp,body.ro #m-new,body.ro #m-set,body.ro #m-van,body.ro #m-all,body.ro:not(.req) [data-act=empEdit],body.ro:not(.req) [data-act=empAdd],body.ro #f-prop,body.ro label:has(#f-prop){display:none!important}
+.reqbar{position:fixed;right:12px;bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:34;background:#ffd23f;color:#2a2000;border:0;border-radius:999px;padding:8px 14px;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+@media (min-width:641px){.reqbar{bottom:20px}}
+.g-tabs{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid var(--line);padding-bottom:4px}
+.g-tabs button{border:0;background:none;padding:8px 10px;white-space:nowrap;color:var(--muted);font-weight:600;border-bottom:3px solid transparent;border-radius:0}
+.g-tabs button.on{color:var(--accent);border-bottom-color:var(--accent)}
+.g-req{background:var(--surface);border:1px solid var(--line);border-left:4px solid #ffd23f;border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:4px}
+.g-req.st-approved{border-left-color:var(--ok)}.g-req.st-rejected,.g-req.st-cancelled{border-left-color:var(--bad);opacity:.8}
+.g-rh{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.g-st{margin-left:auto;font-size:12.5px;color:var(--muted)}
+.g-list{margin:2px 0;padding-left:18px;font-size:14px}
+.g-sub summary{cursor:pointer;color:var(--accent);font-size:14px}.g-sub[open]{display:flex;flex-direction:column;gap:8px}
+.g-audit{display:flex;flex-direction:column;gap:8px;font-size:14px}.g-audit>div{border-bottom:1px solid var(--line);padding-bottom:6px}
 .netbar.off{background:#5b6977;color:#fff}
 #gate{position:fixed;inset:0;z-index:40;background:var(--bg);overflow:auto;padding:max(24px,env(safe-area-inset-top)) 16px 40px}
 .g-card{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
@@ -884,7 +897,7 @@ function openSyncSheet(){
       if(error){toast(error.message);return}toast('จับคู่แล้ว — จอจะเริ่มดึงข้อมูลภายในไม่กี่วินาที');sh.querySelector('#s-code').value='';setTimeout(()=>vanSync(),1500)};
   });
 }
-function vanBoot(){vanSync();vanStartAuto()}
+function vanBoot(){if(CTX.access!=='edit')return;vanSync();vanStartAuto()}
 
 /* ---------- ใบขอรถ ---------- */
 const LOGO_TS="";
@@ -965,7 +978,7 @@ function formFileBase(f){const [y,m]=S.month.split('-');return `ใบขอร�
 function showForm(f){
   const host=document.createElement('div');host.className='fv';host.id='fv';
   host.innerHTML=`<div class="fv-bar"><button data-fv="back">‹ กลับ</button><div>
-    <button data-fv="png" class="primary">บันทึกรูป</button><button data-fv="xlsx">Excel</button><button data-fv="copy">คัดลอกข้อความ</button></div></div>
+    ${CTX.access==='edit'?'<button data-fv="req" class="primary">📨 ส่งขอรถเสริม</button>':''}<button data-fv="png">บันทึกรูป</button><button data-fv="xlsx">Excel</button><button data-fv="copy">คัดลอกข้อความ</button></div></div>
    <div class="fv-body"><div class="fv-scale">${formHtml(f)}</div></div>`;
   document.body.appendChild(host);
   const fit=()=>{const body=host.querySelector('.fv-body'),sc=host.querySelector('.fv-scale'),p=host.querySelector('.paper');const w=body.clientWidth-32;const k=Math.min(1,w/p.offsetWidth);
@@ -973,6 +986,7 @@ function showForm(f){
   fit();window.addEventListener('resize',fit);
   host.addEventListener('click',async e=>{const b=e.target.closest('[data-fv]');if(!b)return;const a=b.dataset.fv;
     if(a==='back'){window.removeEventListener('resize',fit);host.remove();return}
+    if(a==='req'){b.disabled=true;await sendCarRequest(f);b.disabled=false;return}
     if(a==='copy'){const txt=formText(f);try{await navigator.clipboard.writeText(txt);toast('คัดลอกแล้ว — วางใน LINE ได้เลย')}catch{toast('คัดลอกไม่ได้ในมุมมองนี้')}return}
     if(!dl){toast('หน้านี้ดาวน์โหลดไฟล์ไม่ได้ในมุมมองนี้');return}
     if(a==='png'){if(!window.html2canvas){toast('โหลดตัวสร้างรูปไม่สำเร็จ ลองรีเฟรช');return}
@@ -1094,7 +1108,7 @@ const ICON180="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAYAAAA9zQY
 const SB_URL='https://mkmibwypqpneciriychz.supabase.co';
 const SB_KEY='sb_publishable_4XXDfQ0RrgvjPFK6fFCWhA_4b62vjEw';   // publishable key เปิดเผยได้ — สิทธิ์ถูกคุมด้วย RLS
 const sb=window.supabase?window.supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true}}):null;
-const CTX={vanId:null,companyId:null,vanName:'',vanCode:'',who:'',role:null};
+const CTX={vanId:null,companyId:null,vanName:'',vanCode:'',who:'',role:null,approver:false,access:'edit'};
 
 // เก็บไฟล์ลงเครื่อง (แทน downloads ของ claude.ai)
 const DL={async save({filename,data}){const blob=data instanceof Blob?data:new Blob([data]);const u=URL.createObjectURL(blob);
@@ -1186,6 +1200,21 @@ function makeDb(vanId,coId){
       outbox.push({op,path,data,base:cached?cached.data:null,at:new Date().toISOString()})}
     saveOutbox();
   }
+  // ข้อมูลพนักงาน: ผู้ที่ไม่ใช่ผู้อนุมัติ → รวมเป็นคำขอเดียว (รอ 1.5 วิ ให้การแก้หลายคนพร้อมกันอยู่ในคำขอเดียว)
+  const empQ=new Map();let empT=null;
+  function queueEmp(path,data){const id=idOf(path);
+    const cached=(LS.get(CK('employees'),[])||[]).find(d=>d.id===id);
+    if(data&&cached&&JSON.stringify(cached.data)===JSON.stringify(data)){empQ.delete(id);return}
+    if(!data&&!cached){empQ.delete(id);return}
+    empQ.set(id,data);clearTimeout(empT);empT=setTimeout(sendEmp,1500)}
+  async function sendEmp(){
+    const items=[...empQ].map(([id,data])=>({id,data}));empQ.clear();if(!items.length)return;
+    const names=items.map(i=>(i.data?'':'ลบ ')+(i.data?.name||(LS.get(CK('employees'),[])||[]).find(d=>d.id===i.id)?.data?.name||i.id));
+    try{const r=await rpc('request_change',{p_van:vanId,p_kind:'employee',p_payload:items.length===1?items[0]:{items},
+        p_summary:`ข้อมูลพนักงาน ${items.length} คน: ${names.slice(0,5).join(', ')}${names.length>5?' …':''}`});
+      toast(r.status==='approved'?'บันทึกแล้ว':`ส่งขออนุมัติแล้ว (${items.length} คน) — จะเปลี่ยนเมื่อแอดมินอนุมัติ`);if(typeof loadLineReqs==='function')loadLineReqs()}
+    catch(e){if(isNetErr(e)||isAuthErr(e)){items.forEach(i=>empQ.has(i.id)||empQ.set(i.id,i.data));empT=setTimeout(sendEmp,20000);toast('ไม่มีเน็ต — จะส่งคำขอเมื่อมีเน็ต')}
+      else toast('ส่งคำขอไม่สำเร็จ: '+e.message)}}
   let flushing=false;
   async function flush(){
     if(flushing||!outbox.length)return;flushing=true;
@@ -1213,12 +1242,16 @@ function makeDb(vanId,coId){
     collection(path){return {onSnapshot(cb,err){const s={path,cb,err,sig:null};subs.add(s);refresh(s);return ()=>subs.delete(s)}}},
     doc(path){return {
       async set(data){data=clone(data);
+        if(path.startsWith('employees/')&&!CTX.approver){queueEmp(path,data);return}
+        if(CTX.access!=='edit')return;                                   // ดูอย่างเดียว
         if(outbox.length){enqueue('set',path,data);cacheDoc(path,data);flush();return}   // รักษาลำดับ: มีของค้าง → ต่อคิว
         const base=(LS.get(CK(parentOf(path)),[])||[]).find(d=>d.id===idOf(path));
         try{await remoteSet(path,data);cacheDoc(path,data);setOnline(true)}
         catch(e){if(!isNetErr(e)&&!isAuthErr(e))throw e;setOnline(false);
           outbox.push({op:'set',path,data,base:base?base.data:null,at:new Date().toISOString()});saveOutbox();cacheDoc(path,data)}},
       async delete(){
+        if(path.startsWith('employees/')&&!CTX.approver){queueEmp(path,null);return}
+        if(CTX.access!=='edit')return;
         if(outbox.length){enqueue('del',path,null);cacheDoc(path,null);flush();return}
         try{await remoteDel(path);cacheDoc(path,null);setOnline(true)}
         catch(e){if(!isNetErr(e)&&!isAuthErr(e))throw e;setOnline(false);enqueue('del',path,null);cacheDoc(path,null)}},
@@ -1259,7 +1292,7 @@ function showDriverLogin(){
       const {data,error}=await sb.rpc('driver_login',{p_code:code,p_pin:pin});if(error)throw error;
       if(!data.ok)throw new Error(data.error);
       try{localStorage.setItem('vanCode',code)}catch{}
-      openVan({vanId:data.van_id,companyId:data.company_id,vanName:data.van_name,vanCode:code,who:data.driver_name,role:'driver'});
+      openVan({vanId:data.van_id,companyId:data.company_id,vanName:data.van_name,vanCode:code,who:data.driver_name,role:'driver',approver:false,access:'edit'});
     }catch(e){gErr(e)}finally{gBusy(b,false)}};
   $('#g-go').onclick=go;$('#g-pin').onkeydown=e=>{if(e.key==='Enter')go()};
 }
@@ -1282,47 +1315,6 @@ function showOwnerLogin(mode){
     }catch(e){gErr(e.message==='Invalid login credentials'?'อีเมลหรือรหัสผ่านไม่ถูกต้อง':e)}finally{gBusy(b,false)}};
 }
 
-/* ---------- หน้าเจ้าของ: บริษัท → รถ → คนขับ ---------- */
-async function showConsole(){
-  gate('<p>กำลังโหลด…</p>');
-  const {data:{user}}=await sb.auth.getUser();
-  const {data:mem,error}=await sb.from('members').select('company_id,role,companies(name,plan,trial_until)').eq('user_id',user.id);
-  if(error){gate(`<p class="danger">${esc(error.message)}</p><button id="g-out">ออกจากระบบ</button>`);$('#g-out').onclick=signOutAll;return}
-  if(!mem.length){
-    gate(`<h2>สร้างบริษัท</h2><div class="field"><label for="g-co">ชื่อบริษัท</label><input id="g-co" placeholder="เช่น บริษัท ... คาร์เรนท์"></div><p class="g-err danger"></p>
-     <button class="primary g-big" id="g-mk">สร้าง</button><button class="ghost" id="g-out">ออกจากระบบ (${esc(user.email)})</button>`);
-    $('#g-out').onclick=signOutAll;
-    $('#g-mk').onclick=async()=>{const n=$('#g-co').value.trim();const {error}=await sb.rpc('create_company',{p_name:n});if(error)gErr(error);else showConsole()};return}
-  const co=mem[0];CTX.companyId=co.company_id;
-  const [{data:vans},{data:drivers}]=await Promise.all([
-    sb.from('vans').select('id,code,name,plate,client_site,active').eq('company_id',co.company_id).order('created_at'),
-    sb.from('drivers').select('id,van_id,display_name,phone,active').eq('company_id',co.company_id).order('created_at')]);
-  const vCard=v=>{const ds=(drivers||[]).filter(d=>d.van_id===v.id);
-    return `<div class="g-van"><div class="g-vh"><div><b>${esc(v.name)}</b>${v.plate?` · ${esc(v.plate)}`:''}${v.client_site?` · ${esc(v.client_site)}`:''}</div>
-      <div class="g-code" title="ให้คนขับใช้รหัสนี้">รหัสรถ <b>${v.code}</b></div></div>
-      <div class="g-drv">${ds.length?ds.map(d=>`<div class="g-dr ${d.active?'':'off'}"><span>${esc(d.display_name)}${d.phone?` <span class="hint">${esc(d.phone)}</span>`:''}${d.active?'':' <span class="hint">(ปิดแล้ว)</span>'}</span>
-        <span><button data-pin="${d.id}">เปลี่ยน PIN</button><button data-act2="${d.active?'off':'on'}" data-d="${d.id}">${d.active?'ปิด':'เปิด'}</button></span></div>`).join(''):'<p class="hint">ยังไม่มีคนขับ</p>'}</div>
-      <div class="g-row"><button data-adddrv="${v.id}">+ คนขับ</button><button class="primary" data-open="${v.id}">เปิดตารางรถคันนี้ ›</button></div></div>`};
-  gate(`<div class="g-top"><div><h2>${esc(co.companies.name)}</h2><span class="hint">${esc(user.email)} · แพ็กเกจ ${esc(co.companies.plan)}${co.companies.trial_until?` (ทดลองถึง ${esc(co.companies.trial_until)})`:''}</span></div><button class="ghost" id="g-out">ออกจากระบบ</button></div>
-   ${(vans||[]).map(vCard).join('')||'<p class="hint">ยังไม่มีรถ — เพิ่มรถคันแรก</p>'}
-   <details class="g-add"><summary>+ เพิ่มรถ</summary><div class="row2"><div class="field"><label for="v-name">ชื่อรถ / เบอร์รถ</label><input id="v-name" placeholder="เช่น PD1"></div><div class="field"><label for="v-plate">ทะเบียน</label><input id="v-plate"></div></div>
-    <div class="field"><label for="v-site">โรงงานที่วิ่ง</label><input id="v-site" placeholder="เช่น TPAC"></div><button class="primary" id="v-add">เพิ่มรถ</button></details>
-   <p class="g-err danger"></p>
-   <p class="hint">คนขับเปลี่ยน: กด “ปิด” คนเก่า แล้ว “+ คนขับ” คนใหม่ — ข้อมูลของรถยังอยู่ครบ</p>`);
-  $('#g-out').onclick=signOutAll;
-  $('#v-add').onclick=async()=>{const n=$('#v-name').value.trim();if(!n){gErr('ใส่ชื่อรถ');return}
-    const {error}=await sb.rpc('add_van',{p_company:co.company_id,p_name:n,p_plate:$('#v-plate').value.trim()||null,p_site:$('#v-site').value.trim()||null});if(error)gErr(error);else showConsole()};
-  G.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{const v=vans.find(x=>x.id===b.dataset.open);
-    openVan({vanId:v.id,companyId:co.company_id,vanName:v.name,vanCode:v.code,who:user.email,role:'owner'})});
-  G.querySelectorAll('[data-adddrv]').forEach(b=>b.onclick=async()=>{
-    const name=prompt('ชื่อคนขับ');if(!name)return;const phone=prompt('เบอร์โทร (ไม่ใส่ก็ได้)')||'';const pin=prompt('ตั้ง PIN ตัวเลข 4-6 หลัก');if(!pin)return;
-    const {error}=await sb.rpc('add_driver',{p_van:b.dataset.adddrv,p_name:name,p_phone:phone,p_pin:pin});if(error)gErr(error);else showConsole()});
-  G.querySelectorAll('[data-pin]').forEach(b=>b.onclick=async()=>{const pin=prompt('PIN ใหม่ (ตัวเลข 4-6 หลัก) — คนขับคนนี้จะต้องเข้าระบบใหม่');if(!pin)return;
-    const {error}=await sb.rpc('set_driver',{p_driver:b.dataset.pin,p_pin:pin});if(error)gErr(error);else toast('เปลี่ยน PIN แล้ว')});
-  G.querySelectorAll('[data-act2]').forEach(b=>b.onclick=async()=>{const on=b.dataset.act2==='on';
-    if(!on&&!confirm('ปิดคนขับคนนี้? เครื่องของเขาจะออกจากระบบทันที'))return;
-    const {error}=await sb.rpc('set_driver',{p_driver:b.dataset.d,p_active:on});if(error)gErr(error);else showConsole()});
-}
 async function signOutAll(){
   const ob=LS.get(`tk:${CTX.vanId}:outbox`,[]);
   if(ob.length&&!confirm(`ยังมีที่แก้ไว้ ${ob.length} รายการที่ยังไม่ได้ส่ง (ไม่มีเน็ต) — ออกจากระบบแล้วจะหาย ออกเลยไหม?`))return;
@@ -1335,18 +1327,27 @@ function openVan(c){
   LS.set('tk:lastVan',c);
   if(started){location.reload();return}
   started=true;G.hidden=true;G.innerHTML='';
-  $('#sub').textContent=`${c.vanName} · ${c.who}`;
+  CTX.access=c.access||'edit';CTX.approver=!!c.approver;
+  document.body.classList.toggle('ro',CTX.access!=='edit');document.body.classList.toggle('req',CTX.access==='owner');
+  const RL={driver:'คนขับ',company:CTX.approver?'แอดมิน':'พนักงานบริษัท',vowner:'เจ้าของรถ',tenant:'ผู้เช่า (ดูอย่างเดียว)'};
+  $('#sub').textContent=`${c.vanName} · ${c.who} · ${RL[c.role]||''}`;
+  setTimeout(loadLineReqs,1500);setInterval(()=>{if(document.visibilityState==='visible')loadLineReqs()},60000);
   startApp(makeDb(c.vanId,c.companyId));
 }
 function openAccount(){
-  openSheet(`<h3>บัญชี</h3><dl class="sync-st"><dt>รถ</dt><dd>${esc(CTX.vanName)} (รหัส ${esc(CTX.vanCode)})</dd><dt>ผู้ใช้</dt><dd>${esc(CTX.who)} · ${CTX.role==='owner'?'เจ้าของ/แอดมิน':'คนขับ'}</dd></dl>
-   ${CTX.role==='owner'?'<button id="a-console" style="min-height:46px">‹ กลับหน้าบริษัท (รถทั้งหมด)</button>':''}
-   <button id="a-imp" style="min-height:46px">นำเข้าข้อมูลจากแอปเดิม (.json)</button>
+  const RL={driver:'คนขับ',company:CTX.approver?'แอดมิน (อนุมัติได้)':'พนักงานบริษัท (ต้องขออนุมัติ)',vowner:'เจ้าของรถ (แก้ = ขออนุมัติ)',tenant:'ผู้เช่า (ดูอย่างเดียว)'};
+  openSheet(`<h3>บัญชี</h3><dl class="sync-st"><dt>สาย</dt><dd>${esc(CTX.vanName)}${CTX.vanCode?` (รหัส ${esc(CTX.vanCode)})`:''}</dd><dt>ผู้ใช้</dt><dd>${esc(CTX.who)} · ${RL[CTX.role]||''}</dd></dl>
+   ${CTX.role!=='driver'?'<button id="a-console" style="min-height:46px">‹ กลับหน้าแรก (บริษัท / สายทั้งหมด)</button>':''}
+   <button id="a-req" style="min-height:46px">📝 คำขอของสายนี้${REQ.pending.length?` (${REQ.pending.length})`:''}</button>
+   ${CTX.role!=='tenant'?'<button id="a-log" style="min-height:46px">🕘 ประวัติการแก้ไข</button>':''}
+   ${CTX.access==='edit'?'<button id="a-imp" style="min-height:46px">นำเข้าข้อมูลจากแอปเดิม (.json)</button>':''}
    <button class="danger" id="a-out" style="min-height:46px">ออกจากระบบ</button><button class="ghost" data-act="close">ปิด</button>
    <input type="file" id="a-file" accept=".json,application/json" hidden>`,sh=>{
     sh.querySelector('#a-out').onclick=signOutAll;
     const cb=sh.querySelector('#a-console');if(cb)cb.onclick=()=>{try{sessionStorage.removeItem('openVan')}catch{}location.reload()};
-    sh.querySelector('#a-imp').onclick=()=>sh.querySelector('#a-file').click();
+    sh.querySelector('#a-req').onclick=()=>{closeSheet();openLineReqs()};
+    const lg=sh.querySelector('#a-log');if(lg)lg.onclick=()=>{closeSheet();openLineLog()};
+    const im=sh.querySelector('#a-imp');if(im)im.onclick=()=>sh.querySelector('#a-file').click();
     sh.querySelector('#a-file').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{await importBackup(JSON.parse(await f.text()))}catch(err){toast('ไฟล์ไม่ถูกต้อง: '+err.message)}};
   });
 }
@@ -1374,11 +1375,214 @@ async function boot(){
   if(session.user.is_anonymous){
     const {data,error}=await sb.rpc('my_driver');
     if(error&&(isNetErr(error)||isAuthErr(error))&&last&&last.role==='driver'){setOnline(false);openVan(last);return}
-    if(data&&data.van_id){openVan({vanId:data.van_id,companyId:data.company_id,vanName:data.van_name,vanCode:data.van_code,who:data.driver_name,role:'driver'});return}
+    if(data&&data.van_id){openVan({vanId:data.van_id,companyId:data.company_id,vanName:data.van_name,vanCode:data.van_code,who:data.driver_name,role:'driver',approver:false,access:'edit'});return}
     LS.del('tk:lastVan');await sb.auth.signOut();showDriverLogin();gErr('หมดเวลาการใช้งาน หรือถูกปิดสิทธิ์ — เข้าใหม่อีกครั้ง');return}
   let ov=null;try{ov=JSON.parse(sessionStorage.getItem('openVan')||'null')}catch{}
-  if(ov&&ov.role==='owner'){openVan(ov);return}
+  if(ov&&ov.role&&ov.role!=='driver'){openVan(ov);return}
   showConsole();
+}
+
+/* ---------- หน้าบริษัท: สาย · คำขอ · รถ/เจ้าของ · ผู้เช่า · ทีมงาน · ประวัติ ---------- */
+const ROLE_TH={owner:'เจ้าของบัญชี (อนุมัติได้)',admin:'แอดมิน (อนุมัติได้)',staff:'พนักงาน (ต้องขออนุมัติ)',super:'ผู้ดูแลระบบ TanKa'};
+const KIND_TH={employee:'ข้อมูลพนักงาน',line_assign:'เปลี่ยนรถ/คนขับ/ผู้เช่าของสาย',car_request:'ขอรถเสริม'};
+const ST_TH={pending:'รออนุมัติ',approved:'อนุมัติแล้ว',rejected:'ไม่อนุมัติ',cancelled:'ยกเลิก'};
+const fmtT=t=>t?new Date(t).toLocaleString('th-TH',{dateStyle:'short',timeStyle:'short'}):'';
+let CON={coId:null,tab:'lines'};
+
+async function rpc(fn,args){const {data,error}=await sb.rpc(fn,args||{});if(error)throw error;if(data&&data.ok===false)throw new Error(data.error);return data}
+function gForm(id,html){return `<details class="g-add" id="${id}"><summary>${html[0]}</summary>${html[1]}</details>`}
+
+// สรุปคำขอให้คนอ่านเข้าใจ
+function reqDetail(r,ctx){
+  const p=r.payload||{};
+  if(r.kind==='employee'){const items=p.items||[p];
+    return `<ul class="g-list">${items.slice(0,12).map(it=>it.data?`<li>${esc(it.data.name||it.id)}${it.data.phone?` · ${esc(it.data.phone)}`:''}${it.data.place?` · ${esc(it.data.place)}`:''}${it.data.lat!=null&&it.data.lat!==''?' · 📍':''}</li>`:`<li class="danger">ลบ: ${esc((ctx.empNames||{})[it.id]||it.id)}</li>`).join('')}${items.length>12?`<li>…อีก ${items.length-12} คน</li>`:''}</ul>`}
+  if(r.kind==='line_assign'){const a=[];
+    if('vehicle_id' in p)a.push('รถ → '+esc((ctx.vehicles||[]).find(v=>v.id===p.vehicle_id)?.plate||'(ไม่ระบุ)'));
+    if('tenant_id' in p)a.push('ผู้เช่า → '+esc((ctx.tenants||[]).find(t=>t.id===p.tenant_id)?.name||'(ไม่ระบุ)'));
+    if(p.deactivate_driver)a.push('ปิดคนขับ: '+esc((ctx.drivers||[]).find(d=>d.id===p.deactivate_driver)?.display_name||''));
+    if(p.new_driver)a.push('คนขับใหม่: '+esc(p.new_driver.name)+(p.new_driver.phone?' · '+esc(p.new_driver.phone):''));
+    return `<ul class="g-list">${a.map(x=>`<li>${x}</li>`).join('')}</ul>`}
+  if(r.kind==='car_request')return `<p class="hint">วันที่ ${esc(p.day)} · ${p.shift==='night'?'รอบดึก':'รอบเช้า'} · รถหลัก ${(p.main||[]).length} คน · รถเสริม ${(p.extra||[]).length} คน · OT ${(p.ot||[]).length} คน</p>`;
+  return '';
+}
+function reqCard(r,ctx,canDecide){
+  const line=(ctx.vans||[]).find(v=>v.id===r.van_id);
+  return `<div class="g-req st-${r.status}"><div class="g-rh"><b>${esc(KIND_TH[r.kind]||r.kind)}</b>${line?` · ${esc(line.name)}`:''}<span class="g-st">${ST_TH[r.status]}</span></div>
+    ${r.summary?`<div>${esc(r.summary)}</div>`:''}${reqDetail(r,ctx)}
+    <div class="hint">ขอโดย ${esc(r.requested_label||'')} · ${fmtT(r.created_at)}${r.decided_at?` · ${ST_TH[r.status]}โดย ${esc(r.decided_label||'')} ${fmtT(r.decided_at)}`:''}${r.note?` · ${esc(r.note)}`:''}</div>
+    ${r.status==='pending'?`<div class="g-row">${canDecide?`<button class="danger" data-rej="${r.id}">ไม่อนุมัติ</button><button class="primary" data-ok="${r.id}">อนุมัติ</button>`:''}${r.mine?`<button class="ghost" data-cancel="${r.id}">ยกเลิกคำขอ</button>`:''}</div>`:''}</div>`;
+}
+function wireReq(root,after){
+  root.querySelectorAll('[data-ok]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await rpc('decide_change',{p_id:b.dataset.ok,p_approve:true});toast('อนุมัติแล้ว');after()}catch(e){toast(e.message);b.disabled=false}});
+  root.querySelectorAll('[data-rej]').forEach(b=>b.onclick=async()=>{const note=prompt('เหตุผลที่ไม่อนุมัติ (ไม่ใส่ก็ได้)');if(note===null)return;b.disabled=true;
+    try{await rpc('decide_change',{p_id:b.dataset.rej,p_approve:false,p_note:note||null});toast('ไม่อนุมัติแล้ว');after()}catch(e){toast(e.message);b.disabled=false}});
+  root.querySelectorAll('[data-cancel]').forEach(b=>b.onclick=async()=>{try{await rpc('cancel_change',{p_id:b.dataset.cancel});toast('ยกเลิกแล้ว');after()}catch(e){toast(e.message)}});
+}
+function auditWhat(a){
+  if(a.what.startsWith('day/')){const b=a.before||{},n=a.after||{};const ch=[];
+    for(const s of ['morning','night']){const B=new Map((b[s]||[]).map(r=>[r.name,r])),N=new Map((n[s]||[]).map(r=>[r.name,r]));
+      for(const [k,r] of N){const o=B.get(k);if(!o)ch.push(`+${k}${r.ot?' (OT)':''}`);else{if((o.status||'')!==(r.status||''))ch.push(`${k}: ${r.status==='ride'?'ขึ้น':r.status==='no'?'ไม่ขึ้น':'ล้าง'}`);if(!!o.back!==!!r.back)ch.push(`${k}: ${r.back?'กลับแล้ว':'ยกเลิกกลับ'}`);if(!!o.ot!==!!r.ot)ch.push(`${k}: ${r.ot?'OT':'ไม่ OT'}`)}}
+      for(const k of B.keys())if(!N.has(k))ch.push(`−${k}`)}
+    const d=a.what.slice(4);return `ตาราง ${+d.slice(8)}/${+d.slice(5,7)}: ${esc(ch.slice(0,6).join(' · ')||'จัดลำดับใหม่')}${ch.length>6?` …(+${ch.length-6})`:''}`}
+  if(a.what.startsWith('employees/'))return `พนักงาน: ${esc((a.after||a.before||{}).name||a.what.slice(10))}${a.after?'':' (ลบ)'}`;
+  if(a.what.startsWith('settings/'))return 'ตั้งค่า '+(a.what.endsWith('route')?'เส้นทาง':'ใบขอรถ');
+  if(a.what.startsWith('months/'))return 'เดือน '+esc(a.what.slice(7));
+  return esc(a.what);
+}
+function auditRows(list,vans){return list.length?`<div class="g-audit">${list.map(a=>`<div><span class="hint">${fmtT(a.at)}</span> <b>${esc(a.actor_label||'')}</b>${vans?` · ${esc((vans.find(v=>v.id===a.van_id)||{}).name||'')}`:''}<br>${auditWhat(a)}</div>`).join('')}</div>`:'<p class="hint">ยังไม่มีประวัติ</p>'}
+
+async function showConsole(coId,tab){
+  gate('<p>กำลังโหลด…</p>');
+  let sc,user;
+  try{[sc,{data:{user}}]=await Promise.all([rpc('my_scope'),sb.auth.getUser()])}
+  catch(e){gate(`<p class="danger">${esc(e.message)}</p><button id="g-out">ออกจากระบบ</button>`);$('#g-out').onclick=signOutAll;return}
+  const cos=sc.companies||[];
+  if(coId)CON.coId=coId;if(tab)CON.tab=tab;
+  if(!CON.coId||!cos.some(c=>c.id===CON.coId)){
+    const others=(sc.lines||[]).filter(l=>l.access!=='edit');
+    if(cos.length===1&&!others.length&&!sc.super)CON.coId=cos[0].id;
+    else return showHome(sc,user);
+  }
+  const co=cos.find(c=>c.id===CON.coId);const approver=co.role!=='staff';
+  const C=CON.coId;
+  const [vans,drivers,vehicles,owners,tenants,reqs,people]=await Promise.all([
+    sb.from('vans').select('id,code,name,plate,client_site,vehicle_id,tenant_id,active').eq('company_id',C).order('created_at').then(r=>r.data||[]),
+    sb.from('drivers').select('id,van_id,display_name,phone,active').eq('company_id',C).order('created_at').then(r=>r.data||[]),
+    sb.from('vehicles').select('id,plate,name,owner_id,active').eq('company_id',C).order('plate').then(r=>r.data||[]),
+    sb.from('vehicle_owners').select('id,name,phone,user_id').eq('company_id',C).order('name').then(r=>r.data||[]),
+    sb.from('tenants').select('id,name').eq('company_id',C).order('name').then(r=>r.data||[]),
+    sb.from('change_requests').select('*').eq('company_id',C).order('created_at',{ascending:false}).limit(60).then(r=>r.data||[]),
+    rpc('company_people',{p_company:C}).catch(()=>({members:[],tenant_viewers:[],owner_emails:{}}))]);
+  reqs.forEach(r=>r.mine=r.requested_by===user.id);
+  const ctx={vans,drivers,vehicles,owners,tenants};
+  const pend=reqs.filter(r=>r.status==='pending');
+  const vName=id=>{const v=vehicles.find(x=>x.id===id);return v?`${v.plate}${v.name?' '+v.name:''}`:''};
+  const oName=id=>(owners.find(o=>o.id===id)||{}).name||'';
+  const opt=(list,sel,lab,none)=>`<option value="">${none||'— ไม่ระบุ —'}</option>`+list.map(x=>`<option value="${x.id}" ${x.id===sel?'selected':''}>${esc(lab(x))}</option>`).join('');
+  const tabs=[['lines','สาย'],['reqs',`คำขอ${pend.length?` (${pend.length})`:''}`],['fleet','รถ/เจ้าของ'],['tenants','ผู้เช่า'],['team','ทีมงาน'],['log','ประวัติ']];
+  let body='';
+  if(CON.tab==='lines'){
+    body=vans.map(v=>{const ds=drivers.filter(d=>d.van_id===v.id);const veh=vehicles.find(x=>x.id===v.vehicle_id);
+      return `<div class="g-van"><div class="g-vh"><div><b>${esc(v.name)}</b><div class="hint">${veh?`รถ ${esc(vName(veh.id))}${veh.owner_id?` · เจ้าของ ${esc(oName(veh.owner_id))}`:''}`:'ยังไม่ระบุรถ'} · ${v.tenant_id?`ผู้เช่า ${esc((tenants.find(t=>t.id===v.tenant_id)||{}).name||'')}`:'ยังไม่ระบุผู้เช่า'}</div></div>
+        <div class="g-code" title="ให้คนขับใช้รหัสนี้">รหัสสาย <b>${v.code}</b></div></div>
+        <div class="g-drv">${ds.length?ds.map(d=>`<div class="g-dr ${d.active?'':'off'}"><span>🚐 ${esc(d.display_name)}${d.phone?` <span class="hint">${esc(d.phone)}</span>`:''}${d.active?'':' <span class="hint">(ปิดแล้ว)</span>'}</span>
+          <span>${approver?`<button data-pin="${d.id}">เปลี่ยน PIN</button>`:''}${d.active?`<button data-offd="${d.id}" data-van="${v.id}">ปิด</button>`:approver?`<button data-ond="${d.id}">เปิด</button>`:''}</span></div>`).join(''):'<p class="hint">ยังไม่มีคนขับ</p>'}</div>
+        <details class="g-sub"><summary>เปลี่ยนรถ / ผู้เช่า / เพิ่มคนขับ${approver?'':' (ส่งขออนุมัติ)'}</summary>
+          <div class="row2"><div class="field"><label>รถ</label><select data-f="veh">${opt(vehicles,v.vehicle_id,x=>`${x.plate}${x.owner_id?' · '+oName(x.owner_id):''}`)}</select></div>
+          <div class="field"><label>ผู้เช่า</label><select data-f="ten">${opt(tenants,v.tenant_id,x=>x.name)}</select></div></div>
+          <div class="row2"><div class="field"><label>คนขับใหม่ (ชื่อ)</label><input data-f="dn"></div><div class="field"><label>เบอร์</label><input data-f="dp" inputmode="tel"></div></div>
+          <div class="field"><label>PIN คนขับใหม่ (ตัวเลข 4–6 หลัก)</label><input data-f="pin" inputmode="numeric" maxlength="6"></div>
+          <button class="primary" data-assign="${v.id}">${approver?'บันทึก':'ส่งขออนุมัติ'}</button></details>
+        <div class="g-row"><button class="primary" data-open="${v.id}">เปิดตารางสายนี้ ›</button></div></div>`}).join('')||'<p class="hint">ยังไม่มีสาย</p>';
+    if(approver)body+=gForm('f-line',['+ เพิ่มสาย',`<div class="field"><label>ชื่อสาย</label><input id="l-name" placeholder="เช่น TPAC PD1"></div>
+      <div class="row2"><div class="field"><label>รถ</label><select id="l-veh">${opt(vehicles,null,x=>`${x.plate}${x.owner_id?' · '+oName(x.owner_id):''}`)}</select></div><div class="field"><label>ผู้เช่า</label><select id="l-ten">${opt(tenants,null,x=>x.name)}</select></div></div>
+      <button class="primary" id="l-add">เพิ่มสาย</button><p class="hint">เพิ่มรถ/ผู้เช่าก่อนได้ที่แท็บ "รถ/เจ้าของ" และ "ผู้เช่า"</p>`]);
+  } else if(CON.tab==='reqs'){
+    body=(pend.length?pend.map(r=>reqCard(r,ctx,approver)).join(''):'<p class="hint">ไม่มีคำขอรออนุมัติ</p>')+
+      (reqs.length>pend.length?`<h3 style="margin-top:14px">ล่าสุด</h3>${reqs.filter(r=>r.status!=='pending').slice(0,20).map(r=>reqCard(r,ctx,false)).join('')}`:'');
+  } else if(CON.tab==='fleet'){
+    body=`<h3>เจ้าของรถ</h3>${owners.map(o=>`<div class="g-dr"><span><b>${esc(o.name)}</b>${o.phone?` <span class="hint">${esc(o.phone)}</span>`:''}<br><span class="hint">${o.user_id?'บัญชี: '+esc(people.owner_emails?.[o.id]||'ผูกแล้ว'):'ยังไม่ผูกบัญชี (เจ้าของรถยังเข้าแอปไม่ได้)'}</span></span>${approver&&!o.user_id?`<button data-link="${o.id}">ผูกอีเมล</button>`:''}</div>`).join('')||'<p class="hint">ยังไม่มี</p>'}
+      <h3 style="margin-top:14px">รถ</h3>${vehicles.map(x=>`<div class="g-dr"><span><b>${esc(x.plate)}</b> ${esc(x.name||'')}<br><span class="hint">${x.owner_id?'เจ้าของ '+esc(oName(x.owner_id)):'ไม่ระบุเจ้าของ'} · วิ่ง ${vans.filter(v=>v.vehicle_id===x.id).map(v=>esc(v.name)).join(', ')||'—'}</span></span></div>`).join('')||'<p class="hint">ยังไม่มี</p>'}`;
+    if(approver)body+=gForm('f-own',['+ เพิ่มเจ้าของรถ',`<div class="row2"><div class="field"><label>ชื่อ</label><input id="o-name"></div><div class="field"><label>เบอร์</label><input id="o-phone" inputmode="tel"></div></div>
+      <div class="field"><label>อีเมลที่เจ้าของรถใช้เข้าแอป (ไม่ใส่ก็ได้ — ใส่ทีหลังได้)</label><input id="o-mail" type="email"></div><button class="primary" id="o-add">เพิ่ม</button>`])+
+      gForm('f-veh',['+ เพิ่มรถ',`<div class="row2"><div class="field"><label>ทะเบียน</label><input id="x-plate"></div><div class="field"><label>ชื่อ/เบอร์รถ</label><input id="x-name"></div></div>
+      <div class="field"><label>เจ้าของรถ</label><select id="x-own">${opt(owners,null,o=>o.name)}</select></div><button class="primary" id="x-add">เพิ่มรถ</button>`]);
+  } else if(CON.tab==='tenants'){
+    body=tenants.map(t=>`<div class="g-van"><b>${esc(t.name)}</b><div class="hint">สาย: ${vans.filter(v=>v.tenant_id===t.id).map(v=>esc(v.name)).join(', ')||'—'}</div>
+      <div class="hint">ผู้ดู (ดูอย่างเดียว): ${(people.tenant_viewers||[]).filter(x=>x.tenant_id===t.id).map(x=>esc(x.email||'')).join(', ')||'—'}</div>
+      ${approver?`<div class="g-row"><input data-tv="${t.id}" type="email" placeholder="อีเมลผู้ดูของผู้เช่า" style="flex:1"><button data-tvadd="${t.id}">เพิ่มผู้ดู</button></div>`:''}</div>`).join('')||'<p class="hint">ยังไม่มีผู้เช่า</p>';
+    if(approver)body+=gForm('f-ten',['+ เพิ่มบริษัทผู้เช่า',`<div class="field"><label>ชื่อบริษัทผู้เช่า</label><input id="t-name" placeholder="เช่น TPAC"></div><button class="primary" id="t-add">เพิ่ม</button>`]);
+  } else if(CON.tab==='team'){
+    body=(people.members||[]).map(m=>`<div class="g-dr"><span>${esc(m.email||m.user_id)}<br><span class="hint">${ROLE_TH[m.role]||m.role}</span></span></div>`).join('');
+    if(approver)body+=gForm('f-mem',['+ เพิ่มทีมงาน',`<div class="field"><label>อีเมล (ต้องสมัครในแอปแล้ว)</label><input id="m-mail" type="email"></div>
+      <div class="field"><label>บทบาท</label><select id="m-role"><option value="staff">พนักงาน — แก้ได้แต่ต้องขออนุมัติ</option><option value="admin">แอดมิน — อนุมัติได้</option></select></div><button class="primary" id="m-add">เพิ่ม</button>`]);
+  } else if(CON.tab==='log'){
+    const {data:log}=await sb.from('audit_log').select('*').eq('company_id',C).order('at',{ascending:false}).limit(60);
+    body=auditRows(log||[],vans);
+  }
+  gate(`<div class="g-top"><div><h2>${esc(co.name)}</h2><span class="hint">${esc(user.email)} · ${ROLE_TH[co.role]||co.role}</span></div><button class="ghost" id="g-out">ออกจากระบบ</button></div>
+   ${cos.length>1||sc.super||(sc.lines||[]).some(l=>l.access!=='edit')?'<button class="ghost" id="g-home" style="align-self:flex-start">‹ เลือกบริษัท / สายอื่น</button>':''}
+   <div class="g-tabs">${tabs.map(([k,l])=>`<button class="${CON.tab===k?'on':''}" data-tab="${k}">${l}</button>`).join('')}</div>
+   ${body}<p class="g-err danger"></p>`);
+  const re=()=>showConsole(C);
+  $('#g-out').onclick=signOutAll;const gh=$('#g-home');if(gh)gh.onclick=()=>{CON.coId=null;showHome(sc,user)};
+  G.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>showConsole(C,b.dataset.tab));
+  wireReq(G,re);
+  const run=async(fn,msg)=>{try{await fn();if(msg)toast(msg);re()}catch(e){gErr(e)}};
+  G.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{const v=vans.find(x=>x.id===b.dataset.open);
+    openVan({vanId:v.id,companyId:C,vanName:v.name,vanCode:v.code,who:user.email,role:'company',approver,access:'edit'})});
+  G.querySelectorAll('[data-pin]').forEach(b=>b.onclick=()=>{const pin=prompt('PIN ใหม่ (ตัวเลข 4-6 หลัก) — คนขับคนนี้ต้องเข้าระบบใหม่');if(pin)run(()=>rpc('set_driver',{p_driver:b.dataset.pin,p_pin:pin}),'เปลี่ยน PIN แล้ว')});
+  G.querySelectorAll('[data-ond]').forEach(b=>b.onclick=()=>run(()=>rpc('set_driver',{p_driver:b.dataset.ond,p_active:true})));
+  G.querySelectorAll('[data-offd]').forEach(b=>b.onclick=()=>{if(!confirm(approver?'ปิดคนขับคนนี้? เครื่องของเขาจะออกจากระบบทันที':'ส่งคำขอปิดคนขับคนนี้?'))return;
+    run(()=>rpc('request_change',{p_van:b.dataset.van,p_kind:'line_assign',p_payload:{deactivate_driver:b.dataset.offd},p_summary:'ปิดคนขับ'}),approver?'ปิดแล้ว':'ส่งขออนุมัติแล้ว')});
+  G.querySelectorAll('[data-assign]').forEach(b=>b.onclick=()=>{const box=b.closest('details'),v=vans.find(x=>x.id===b.dataset.assign),f=k=>box.querySelector(`[data-f="${k}"]`).value.trim();
+    const p={};if((f('veh')||null)!==(v.vehicle_id||null))p.vehicle_id=f('veh')||null;if((f('ten')||null)!==(v.tenant_id||null))p.tenant_id=f('ten')||null;
+    if(f('dn')){if(!/^\d{4,6}$/.test(f('pin'))){gErr('PIN ต้องเป็นตัวเลข 4-6 หลัก');return}p.new_driver={name:f('dn'),phone:f('dp'),pin:f('pin')}}
+    if(!Object.keys(p).length){gErr('ยังไม่ได้เปลี่ยนอะไร');return}
+    const sum=[p.vehicle_id!==undefined?'เปลี่ยนรถ':'',p.tenant_id!==undefined?'เปลี่ยนผู้เช่า':'',p.new_driver?'เพิ่มคนขับ '+p.new_driver.name:''].filter(Boolean).join(' · ');
+    run(()=>rpc('request_change',{p_van:v.id,p_kind:'line_assign',p_payload:p,p_summary:sum}),approver?'บันทึกแล้ว':'ส่งขออนุมัติแล้ว')});
+  const on=(id,fn)=>{const el=$('#'+id);if(el)el.onclick=fn};
+  on('l-add',()=>{const n=$('#l-name').value.trim();if(!n){gErr('ใส่ชื่อสาย');return}
+    run(()=>rpc('add_van',{p_company:C,p_name:n,p_plate:null,p_site:null,p_vehicle:$('#l-veh').value||null,p_tenant:$('#l-ten').value||null}),'เพิ่มสายแล้ว')});
+  on('o-add',()=>{const n=$('#o-name').value.trim();if(!n){gErr('ใส่ชื่อเจ้าของรถ');return}
+    run(()=>rpc('add_vehicle_owner',{p_company:C,p_name:n,p_phone:$('#o-phone').value.trim()||null,p_email:$('#o-mail').value.trim()||null}),'เพิ่มแล้ว')});
+  on('x-add',()=>{const pl=$('#x-plate').value.trim();if(!pl){gErr('ใส่ทะเบียน');return}
+    run(()=>rpc('add_vehicle',{p_company:C,p_plate:pl,p_name:$('#x-name').value.trim()||null,p_owner:$('#x-own').value||null}),'เพิ่มรถแล้ว')});
+  on('t-add',()=>{const n=$('#t-name').value.trim();if(!n){gErr('ใส่ชื่อผู้เช่า');return}run(()=>rpc('add_tenant',{p_company:C,p_name:n}),'เพิ่มแล้ว')});
+  on('m-add',()=>{const m=$('#m-mail').value.trim();if(!m){gErr('ใส่อีเมล');return}run(()=>rpc('add_member',{p_company:C,p_email:m,p_role:$('#m-role').value}),'เพิ่มแล้ว')});
+  G.querySelectorAll('[data-link]').forEach(b=>b.onclick=()=>{const m=prompt('อีเมลที่เจ้าของรถใช้เข้าแอป');if(m)run(()=>rpc('link_vehicle_owner',{p_owner:b.dataset.link,p_email:m}),'ผูกแล้ว')});
+  G.querySelectorAll('[data-tvadd]').forEach(b=>b.onclick=()=>{const m=G.querySelector(`[data-tv="${b.dataset.tvadd}"]`).value.trim();if(!m){gErr('ใส่อีเมล');return}
+    run(()=>rpc('add_tenant_viewer',{p_tenant:b.dataset.tvadd,p_email:m}),'เพิ่มผู้ดูแล้ว')});
+}
+
+// หน้าแรกเมื่อมีหลายบทบาท / เป็นเจ้าของรถ / ผู้เช่า / ผู้ดูแลระบบ
+function showHome(sc,user){
+  const cos=sc.companies||[];const mine=new Set(cos.map(c=>c.id));
+  const others=(sc.lines||[]).filter(l=>l.access!=='edit'||!mine.has(l.company_id));
+  gate(`<div class="g-top"><div><h2>สวัสดี</h2><span class="hint">${esc(user.email)}${sc.super?' · ผู้ดูแลระบบ TanKa':''}</span></div><button class="ghost" id="g-out">ออกจากระบบ</button></div>
+   ${cos.length?`<h3>บริษัท</h3>${cos.map(c=>`<button class="g-big" data-co="${c.id}" style="text-align:left">🏢 ${esc(c.name)}<br><span class="hint">${ROLE_TH[c.role]||c.role}</span></button>`).join('')}`:''}
+   ${others.length?`<h3>สายที่ดูได้</h3>${others.map(l=>`<button class="g-big" data-line="${l.id}" style="text-align:left">🚐 ${esc(l.name)}${l.plate?' · '+esc(l.plate):''}<br><span class="hint">${l.tenant?'ผู้เช่า '+esc(l.tenant)+' · ':''}${l.access==='owner'?'เจ้าของรถ (แก้ = ขออนุมัติ)':'ดูอย่างเดียว'}</span></button>`).join('')}`:''}
+   ${!cos.length&&!others.length?'<p class="hint">บัญชีนี้ยังไม่ได้อยู่ในบริษัทไหน — ถ้าคุณเป็นเจ้าของรถหรือผู้เช่า ให้บริษัทคาร์เรนท์เพิ่มอีเมลนี้ หรือสร้างบริษัทใหม่ด้านล่าง</p>':''}
+   ${gForm('f-co',['+ สร้างบริษัทคาร์เรนท์ใหม่',`<div class="field"><label for="g-co">ชื่อบริษัท</label><input id="g-co" placeholder="เช่น บริษัท ... คาร์เรนท์"></div><button class="primary" id="g-mk">สร้าง</button>`])}
+   <p class="g-err danger"></p>`);
+  $('#g-out').onclick=signOutAll;
+  G.querySelectorAll('[data-co]').forEach(b=>b.onclick=()=>showConsole(b.dataset.co,'lines'));
+  G.querySelectorAll('[data-line]').forEach(b=>b.onclick=()=>{const l=others.find(x=>x.id===b.dataset.line);
+    openVan({vanId:l.id,companyId:l.company_id,vanName:l.name,vanCode:'',who:user.email,role:l.access==='owner'?'vowner':'tenant',approver:false,access:l.access})});
+  $('#g-mk').onclick=async()=>{const n=$('#g-co').value.trim();if(!n){gErr('ใส่ชื่อบริษัท');return}try{const id=await rpc('create_company',{p_name:n});showConsole(id,'lines')}catch(e){gErr(e)}};
+}
+
+/* ---------- ในหน้าตารางของสาย: คำขอ + ประวัติ ---------- */
+const REQ={pending:[]};
+async function loadLineReqs(){
+  if(!CTX.vanId||NET.offline)return;
+  const {data}=await sb.from('change_requests').select('*').eq('van_id',CTX.vanId).eq('status','pending').order('created_at',{ascending:false});
+  REQ.pending=data||[];lineReqBadge();
+}
+function lineReqBadge(){
+  let el=$('#reqBar');const n=REQ.pending.length;
+  if(!n){if(el)el.remove();return}
+  if(!el){el=document.createElement('button');el.id='reqBar';el.className='reqbar';document.body.appendChild(el);el.onclick=openLineReqs}
+  el.textContent=CTX.approver?`📝 มีคำขอรออนุมัติ ${n} รายการ`:`⏳ รออนุมัติ ${n} รายการ`;
+}
+function openLineReqs(){
+  const ctx={vans:[{id:CTX.vanId,name:CTX.vanName}],empNames:Object.fromEntries(S.emps.map(e=>[e.id,e.name]))};
+  openSheet(`<h3>คำขอของสายนี้</h3><div id="lr">${REQ.pending.map(r=>reqCard({...r,mine:true},ctx,CTX.approver)).join('')||'<p class="hint">ไม่มี</p>'}</div><button class="ghost" data-act="close">ปิด</button>`,sh=>
+    wireReq(sh,async()=>{closeSheet();await loadLineReqs();if(REQ.pending.length)openLineReqs()}));
+}
+async function openLineLog(){
+  openSheet(`<h3>ประวัติการแก้ไข · ${esc(CTX.vanName)}</h3><div id="ll"><p class="hint">กำลังโหลด…</p></div><button class="ghost" data-act="close">ปิด</button>`);
+  const {data,error}=await sb.from('audit_log').select('*').eq('van_id',CTX.vanId).order('at',{ascending:false}).limit(60);
+  const h=$('#ll');if(h)h.innerHTML=error?`<p class="danger">${esc(error.message)}</p>`:auditRows(data||[]);
+}
+// ส่งขอรถเสริมจากหน้าใบขอรถ
+async function sendCarRequest(f){
+  const [y,m]=S.month.split('-');const pick=L=>L.map(r=>({name:r.name,team:r.team||'',place:r.place||'',phone:r.phone||''}));
+  try{const r=await rpc('request_change',{p_van:CTX.vanId,p_kind:'car_request',p_payload:{day:`${y}-${m}-${pad(+f.day)}`,shift:f.shift,main:pick(f.main),extra:pick(f.extra),ot:pick(f.ot)},
+      p_summary:`ขอรถเสริม ${+f.day}/${+m} ${f.shift==='night'?'รอบดึก':'รอบเช้า'} · ${f.extra.length} คน`});
+    toast(r.status==='approved'?'บันทึกใบขอรถแล้ว (อนุมัติแล้ว)':'ส่งขออนุมัติรถเสริมแล้ว');loadLineReqs()}
+  catch(e){toast(isNetErr(e)?'ไม่มีเน็ต — ส่งขออนุมัติไม่ได้ ลองใหม่เมื่อมีเน็ต':e.message)}
 }
 
 function startApp(adapter){
