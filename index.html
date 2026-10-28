@@ -671,7 +671,7 @@ function editEmp(id){
     sh.querySelector('#f-paste').onclick=async()=>{try{llIn.value=await navigator.clipboard.readText();chk()}catch{toast('วางอัตโนมัติไม่ได้ — กดค้างที่ช่องแล้วเลือก “วาง”')}};
     const del=sh.querySelector('#b-del');
     if(del)del.onclick=ev=>{const b=ev.currentTarget;if(!b.classList.contains('armed')){b.classList.add('armed');b.textContent='กดอีกครั้งเพื่อลบ';return}
-      S.emps=S.emps.filter(x=>x.id!==id);delDoc(`employees/${id}`);closeSheet();render();toast('ลบแล้ว (ตารางรายวันไม่เปลี่ยน)')};
+      delDoc(`employees/${id}`);closeSheet();render()};
     sh.querySelector('#b-save').onclick=()=>{const nv=readRider(sh);if(!nv.name){toast('กรุณาใส่ชื่อ');return}
       const lv=llIn.value.trim(),ll=parseLL(lv);if(lv&&!ll){toast('พิกัดไม่ถูกต้อง');return}
       Object.assign(nv,{eid:sh.querySelector('#f-eid').value.trim(),lat:ll?ll[0]:null,lng:ll?ll[1]:null,noride:sh.querySelector('#f-nr').value,noFrom:sh.querySelector('#f-nf').value.trim(),noTo:sh.querySelector('#f-nt').value.trim()});
@@ -1216,11 +1216,14 @@ function makeDb(vanId,coId){
     if(!data&&!cached){empQ.delete(id);return}
     empQ.set(id,data);clearTimeout(empT);empT=setTimeout(sendEmp,1500)}
   async function sendEmp(){
-    const items=[...empQ].map(([id,data])=>({id,data}));empQ.clear();if(!items.length)return;
+    const all=[...empQ].map(([id,data])=>({id,data}));empQ.clear();if(!all.length)return;
+    for(const items of [all.filter(i=>i.data),all.filter(i=>!i.data)])if(items.length)await sendEmpBatch(items)}   // แก้ กับ ลบ แยกคำขอกัน
+  async function sendEmpBatch(items){
+    items=items.map(i=>i.data?i:{...i,name:(LS.get(CK('employees'),[])||[]).find(d=>d.id===i.id)?.data?.name||''});   // ชื่อคนที่ขอลบ ให้ผู้อนุมัติอ่านออก
     const names=items.map(i=>(i.data?'':'ลบ ')+(i.data?.name||(LS.get(CK('employees'),[])||[]).find(d=>d.id===i.id)?.data?.name||i.id));
     try{const r=await rpc('request_change',{p_van:vanId,p_kind:'employee',p_payload:items.length===1?items[0]:{items},
         p_summary:`ข้อมูลพนักงาน ${items.length} คน: ${names.slice(0,5).join(', ')}${names.length>5?' …':''}`});
-      toast(r.status==='approved'?'บันทึกแล้ว':`ส่งขออนุมัติแล้ว (${items.length} คน) — จะเปลี่ยนเมื่อแอดมินอนุมัติ`);if(typeof loadLineReqs==='function')loadLineReqs()}
+      toast(r.status==='approved'?'บันทึกแล้ว':r.delete?'ส่งคำขอลบแล้ว — รอผู้ดูแลระบบ TanKa อนุมัติ':`ส่งขออนุมัติแล้ว (${items.length} คน) — จะเปลี่ยนเมื่อแอดมินอนุมัติ`);if(typeof loadLineReqs==='function')loadLineReqs()}
     catch(e){if(isNetErr(e)||isAuthErr(e)){items.forEach(i=>empQ.has(i.id)||empQ.set(i.id,i.data));empT=setTimeout(sendEmp,20000);toast('ไม่มีเน็ต — จะส่งคำขอเมื่อมีเน็ต')}
       else toast('ส่งคำขอไม่สำเร็จ: '+e.message)}}
   let flushing=false;
@@ -1258,7 +1261,7 @@ function makeDb(vanId,coId){
         catch(e){if(!isNetErr(e)&&!isAuthErr(e))throw e;setOnline(false);
           outbox.push({op:'set',path,data,base:base?base.data:null,at:new Date().toISOString()});saveOutbox();cacheDoc(path,data)}},
       async delete(){
-        if(path.startsWith('employees/')&&!CTX.approver){queueEmp(path,null);return}
+        if(path.startsWith('employees/')){queueEmp(path,null);return}   // ลบพนักงาน = คำขอเสมอ (ผู้ดูแลระบบ TanKa อนุมัติ)
         if(CTX.access!=='edit')return;
         if(outbox.length){enqueue('del',path,null);cacheDoc(path,null);flush();return}
         try{await remoteDel(path);cacheDoc(path,null);setOnline(true)}
@@ -1392,7 +1395,10 @@ async function boot(){
 
 /* ---------- หน้าบริษัท: สาย · คำขอ · รถ/เจ้าของ · ผู้เช่า · ทีมงาน · ประวัติ ---------- */
 const ROLE_TH={owner:'เจ้าของบัญชี (อนุมัติได้)',admin:'แอดมิน (อนุมัติได้)',staff:'พนักงาน (ต้องขออนุมัติ)',super:'ผู้ดูแลระบบ TanKa'};
-const KIND_TH={employee:'ข้อมูลพนักงาน',line_assign:'เปลี่ยนรถ/คนขับ/ผู้เช่าของสาย',car_request:'ขอรถเสริม'};
+const KIND_TH={employee:'ข้อมูลพนักงาน',line_assign:'เปลี่ยนรถ/คนขับ/ผู้เช่าของสาย',car_request:'ขอรถเสริม',delete:'ขอลบข้อมูล'};
+const DEL_TH={line:'สาย',driver:'คนขับ',vehicle:'รถ',owner:'เจ้าของรถ',tenant:'ผู้เช่า'};
+// คำขอที่มีการลบ → ต้องให้ผู้ดูแลระบบ TanKa อนุมัติ
+const needsSuper=r=>r.kind==='delete'||(r.kind==='employee'&&((r.payload||{}).items||[r.payload||{}]).some(it=>!it.data||typeof it.data!=='object'));
 const ST_TH={pending:'รออนุมัติ',approved:'อนุมัติแล้ว',rejected:'ไม่อนุมัติ',cancelled:'ยกเลิก'};
 const fmtT=t=>t?new Date(t).toLocaleString('th-TH',{dateStyle:'short',timeStyle:'short'}):'';
 let CON={coId:null,tab:'lines'};
@@ -1404,22 +1410,24 @@ function gForm(id,html){return `<details class="g-add" id="${id}"><summary>${htm
 function reqDetail(r,ctx){
   const p=r.payload||{};
   if(r.kind==='employee'){const items=p.items||[p];
-    return `<ul class="g-list">${items.slice(0,12).map(it=>it.data?`<li>${esc(it.data.name||it.id)}${it.data.phone?` · ${esc(it.data.phone)}`:''}${it.data.place?` · ${esc(it.data.place)}`:''}${it.data.lat!=null&&it.data.lat!==''?' · 📍':''}</li>`:`<li class="danger">ลบ: ${esc((ctx.empNames||{})[it.id]||it.id)}</li>`).join('')}${items.length>12?`<li>…อีก ${items.length-12} คน</li>`:''}</ul>`}
+    return `<ul class="g-list">${items.slice(0,12).map(it=>it.data?`<li>${esc(it.data.name||it.id)}${it.data.phone?` · ${esc(it.data.phone)}`:''}${it.data.place?` · ${esc(it.data.place)}`:''}${it.data.lat!=null&&it.data.lat!==''?' · 📍':''}</li>`:`<li class="danger">ลบพนักงาน: ${esc(it.name||(ctx.empNames||{})[it.id]||it.id)}</li>`).join('')}${items.length>12?`<li>…อีก ${items.length-12} คน</li>`:''}</ul>`}
   if(r.kind==='line_assign'){const a=[];
     if('vehicle_id' in p)a.push('รถ → '+esc((ctx.vehicles||[]).find(v=>v.id===p.vehicle_id)?.plate||'(ไม่ระบุ)'));
     if('tenant_id' in p)a.push('ผู้เช่า → '+esc((ctx.tenants||[]).find(t=>t.id===p.tenant_id)?.name||'(ไม่ระบุ)'));
     if(p.deactivate_driver)a.push('ปิดคนขับ: '+esc((ctx.drivers||[]).find(d=>d.id===p.deactivate_driver)?.display_name||''));
     if(p.new_driver)a.push('คนขับใหม่: '+esc(p.new_driver.name)+(p.new_driver.phone?' · '+esc(p.new_driver.phone):''));
     return `<ul class="g-list">${a.map(x=>`<li>${x}</li>`).join('')}</ul>`}
+  if(r.kind==='delete')return `<p class="danger">🗑 ลบ${DEL_TH[p.target]||''} “${esc(p.name||'')}”${p.van?` (สาย ${esc(p.van)})`:''}${p.target==='line'?' — ตาราง พนักงาน คนขับ และจอของสายนี้จะหายทั้งหมด':''}</p>`;
   if(r.kind==='car_request')return `<p class="hint">วันที่ ${esc(p.day)} · ${p.shift==='night'?'รอบดึก':'รอบเช้า'} · รถหลัก ${(p.main||[]).length} คน · รถเสริม ${(p.extra||[]).length} คน · OT ${(p.ot||[]).length} คน</p>`;
   return '';
 }
 function reqCard(r,ctx,canDecide){
   const line=(ctx.vans||[]).find(v=>v.id===r.van_id);
+  const sup=needsSuper(r);if(sup&&!ctx.super)canDecide=false;
   return `<div class="g-req st-${r.status}"><div class="g-rh"><b>${esc(KIND_TH[r.kind]||r.kind)}</b>${line?` · ${esc(line.name)}`:''}<span class="g-st">${ST_TH[r.status]}</span></div>
     ${r.summary?`<div>${esc(r.summary)}</div>`:''}${reqDetail(r,ctx)}
     <div class="hint">ขอโดย ${esc(r.requested_label||'')} · ${fmtT(r.created_at)}${r.decided_at?` · ${ST_TH[r.status]}โดย ${esc(r.decided_label||'')} ${fmtT(r.decided_at)}`:''}${r.note?` · ${esc(r.note)}`:''}</div>
-    ${r.status==='pending'?`<div class="g-row">${canDecide?`<button class="danger" data-rej="${r.id}">ไม่อนุมัติ</button><button class="primary" data-ok="${r.id}">อนุมัติ</button>`:''}${r.mine?`<button class="ghost" data-cancel="${r.id}">ยกเลิกคำขอ</button>`:''}</div>`:''}</div>`;
+    ${r.status==='pending'&&sup&&!ctx.super?'<div class="hint">⏳ การลบต้องรอผู้ดูแลระบบ TanKa อนุมัติ</div>':''}${r.status==='pending'?`<div class="g-row">${canDecide?`<button class="danger" data-rej="${r.id}">ไม่อนุมัติ</button><button class="primary" data-ok="${r.id}">อนุมัติ</button>`:''}${r.mine?`<button class="ghost" data-cancel="${r.id}">ยกเลิกคำขอ</button>`:''}</div>`:''}</div>`;
 }
 function wireReq(root,after){
   root.querySelectorAll('[data-ok]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await rpc('decide_change',{p_id:b.dataset.ok,p_approve:true});toast('อนุมัติแล้ว');after()}catch(e){toast(e.message);b.disabled=false}});
@@ -1471,7 +1479,7 @@ async function showConsole(coId,tab){
     sb.from('change_requests').select('*').eq('company_id',C).order('created_at',{ascending:false}).limit(60).then(r=>r.data||[]),
     rpc('company_people',{p_company:C}).catch(()=>({members:[],tenant_viewers:[],owner_emails:{}}))]);
   reqs.forEach(r=>r.mine=r.requested_by===user.id);
-  const ctx={vans,drivers,vehicles,owners,tenants};
+  const ctx={vans,drivers,vehicles,owners,tenants,super:!!sc.super};
   const pend=reqs.filter(r=>r.status==='pending');
   const vName=id=>{const v=vehicles.find(x=>x.id===id);return v?`${v.plate}${v.name?' '+v.name:''}`:''};
   const oName=id=>(owners.find(o=>o.id===id)||{}).name||'';
@@ -1533,9 +1541,9 @@ async function showConsole(coId,tab){
   $('#g-out').onclick=signOutAll;const gh=$('#g-home');if(gh)gh.onclick=()=>{CON.coId=null;showHome(sc,user)};
   G.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>showConsole(C,b.dataset.tab));
   wireReq(G,re);
-  const run=async(fn,msg)=>{try{await fn();if(msg)toast(msg);re()}catch(e){gErr(e)}};
+  const run=async(fn,msg)=>{try{const r=await fn();const m=r&&r.kind==='delete'&&r.status==='pending'?(r.dup?'มีคำขอลบนี้รออยู่แล้ว — รอผู้ดูแลระบบ TanKa อนุมัติ':'ส่งคำขอลบแล้ว — รอผู้ดูแลระบบ TanKa อนุมัติ'):msg;if(m)toast(m);re()}catch(e){gErr(e)}};
   G.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{const v=vans.find(x=>x.id===b.dataset.open);
-    openVan({vanId:v.id,companyId:C,vanName:v.name,vanCode:v.code,who:user.email,role:'company',approver,access:'edit'})});
+    openVan({vanId:v.id,companyId:C,vanName:v.name,vanCode:v.code,who:user.email,role:'company',approver,access:'edit',super:!!sc.super})});
   G.querySelectorAll('[data-pin]').forEach(b=>b.onclick=()=>{const pin=prompt('PIN ใหม่ (ตัวเลข 4-6 หลัก) — คนขับคนนี้ต้องเข้าระบบใหม่');if(pin)run(()=>rpc('set_driver',{p_driver:b.dataset.pin,p_pin:pin}),'เปลี่ยน PIN แล้ว')});
   G.querySelectorAll('[data-ond]').forEach(b=>b.onclick=()=>run(()=>rpc('set_driver',{p_driver:b.dataset.ond,p_active:true})));
   G.querySelectorAll('[data-offd]').forEach(b=>b.onclick=()=>{if(!confirm(approver?'ปิดคนขับคนนี้? เครื่องของเขาจะออกจากระบบทันที':'ส่งคำขอปิดคนขับคนนี้?'))return;
@@ -1588,16 +1596,20 @@ async function showConsole(coId,tab){
 }
 
 // หน้าแรกเมื่อมีหลายบทบาท / เป็นเจ้าของรถ / ผู้เช่า / ผู้ดูแลระบบ
-function showHome(sc,user){
-  const cos=sc.companies||[];const mine=new Set(cos.map(c=>c.id));
+async function showHome(sc,user){
+  const cos=sc.companies||[];
+  let dels=[];if(sc.super){const {data}=await sb.from('change_requests').select('*').eq('status','pending').order('created_at',{ascending:false}).limit(100);dels=(data||[]).filter(needsSuper)}
+  const coName=id=>esc((cos.find(c=>c.id===id)||{}).name||'');const mine=new Set(cos.map(c=>c.id));
   const others=(sc.lines||[]).filter(l=>l.access!=='edit'||!mine.has(l.company_id));
   gate(`<div class="g-top"><div><h2>สวัสดี</h2><span class="hint">${esc(user.email)}${sc.super?' · ผู้ดูแลระบบ TanKa':''}</span></div><button class="ghost" id="g-out">ออกจากระบบ</button></div>
+   ${dels.length?`<h3 class="danger">🗑 คำขอลบรออนุมัติ (${dels.length})</h3><div id="g-dels">${dels.map(r=>`<div class="hint" style="margin-top:6px">🏢 ${coName(r.company_id)}</div>`+reqCard(r,{super:true,vans:[]},true)).join('')}</div>`:''}
    ${cos.length?`<h3>บริษัท</h3>${cos.map(c=>`<button class="g-big" data-co="${c.id}" style="text-align:left">🏢 ${esc(c.name)}<br><span class="hint">${ROLE_TH[c.role]||c.role}${cos.filter(x=>x.name===c.name).length>1?` · รหัส ${c.id.slice(0,6)}`:''}</span></button>`).join('')}`:''}
    ${others.length?`<h3>สายที่ดูได้</h3>${others.map(l=>`<button class="g-big" data-line="${l.id}" style="text-align:left">🚐 ${esc(l.name)}${l.plate?' · '+esc(l.plate):''}<br><span class="hint">${l.tenant?'ผู้เช่า '+esc(l.tenant)+' · ':''}${l.access==='owner'?'เจ้าของรถ (แก้ = ขออนุมัติ)':'ดูอย่างเดียว'}</span></button>`).join('')}`:''}
    ${!cos.length&&!others.length?'<p class="hint">บัญชีนี้ยังไม่ได้อยู่ในบริษัทไหน — ถ้าคุณเป็นเจ้าของรถหรือผู้เช่า ให้บริษัทคาร์เรนท์เพิ่มอีเมลนี้ หรือสร้างบริษัทใหม่ด้านล่าง</p>':''}
    ${gForm('f-co',['+ สร้างบริษัทคาร์เรนท์ใหม่',`<div class="field"><label for="g-co">ชื่อบริษัท</label><input id="g-co" placeholder="เช่น บริษัท ... คาร์เรนท์"></div><button class="primary" id="g-mk">สร้าง</button>`])}
    <p class="g-err danger"></p>`);
   $('#g-out').onclick=signOutAll;
+  wireReq(G,()=>showConsole());
   G.querySelectorAll('[data-co]').forEach(b=>b.onclick=()=>showConsole(b.dataset.co,'lines'));
   G.querySelectorAll('[data-line]').forEach(b=>b.onclick=()=>{const l=others.find(x=>x.id===b.dataset.line);
     openVan({vanId:l.id,companyId:l.company_id,vanName:l.name,vanCode:'',who:user.email,role:l.access==='owner'?'vowner':'tenant',approver:false,access:l.access})});
@@ -1618,7 +1630,7 @@ function lineReqBadge(){
   el.textContent=CTX.approver?`📝 มีคำขอรออนุมัติ ${n} รายการ`:`⏳ รออนุมัติ ${n} รายการ`;
 }
 function openLineReqs(){
-  const ctx={vans:[{id:CTX.vanId,name:CTX.vanName}],empNames:Object.fromEntries(S.emps.map(e=>[e.id,e.name]))};
+  const ctx={super:!!CTX.super,vans:[{id:CTX.vanId,name:CTX.vanName}],empNames:Object.fromEntries(S.emps.map(e=>[e.id,e.name]))};
   openSheet(`<h3>คำขอของสายนี้</h3><div id="lr">${REQ.pending.map(r=>reqCard({...r,mine:true},ctx,CTX.approver)).join('')||'<p class="hint">ไม่มี</p>'}</div><button class="ghost" data-act="close">ปิด</button>`,sh=>
     wireReq(sh,async()=>{closeSheet();await loadLineReqs();if(REQ.pending.length)openLineReqs()}));
 }
