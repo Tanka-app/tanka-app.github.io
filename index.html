@@ -247,6 +247,9 @@ button.armed{background:var(--bad);color:var(--surface);border-color:var(--bad)}
 .rl{font-size:14px;flex:1 1 260px}
 .rl.warn{color:var(--bad);font-size:13.5px}
 .mk{color:var(--morning);font-weight:600}
+.ftbtn{min-height:30px;padding:2px 8px;font-size:inherit;border-radius:8px}
+.ftbtn.on{border-color:var(--accent);color:var(--accent);font-weight:700}
+body.ro .ftbtn{pointer-events:none;border-color:transparent}
 .navbtn{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-height:40px;padding:6px 14px;border-radius:8px;background:var(--ok);color:#fff;font-weight:600;text-decoration:none;white-space:nowrap}
 .navbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 details.drop{display:block}
@@ -428,6 +431,9 @@ function gmapsLinks(pts,a,b){
   const f=p=>p[0].toFixed(6)+','+p[1].toFixed(6);const all=[a,...pts,b];const out=[];let i=0;
   while(i<all.length-1){const seg=all.slice(i,i+11);out.push('https://www.google.com/maps/dir/?api=1&travelmode=driving&origin='+f(seg[0])+'&destination='+f(seg[seg.length-1])+(seg.length>2?'&waypoints='+encodeURIComponent(seg.slice(1,-1).map(f).join('|')):''));i+=seg.length-1}
   return out}
+function monDoc(){return S.months.find(m=>m.id===S.month)}
+function firstT(dd,s){const m=monDoc();return (m&&m.firstT&&m.firstT[dd]&&m.firstT[dd][s])||''}
+function saveMonDoc(){const m=monDoc();if(!m)return;const {id,...rest}=m;rest.updatedAt=new Date().toISOString();return saveDoc(`months/${id}`,rest)}
 function isMarketDay(dd){return S.route.marketOn&&dateOf(dd).getDay()===+S.route.marketDow}
 function mktMin(n){return Math.max(0,2.5*n-2.5)}
 // ขารับ: ใช้ลำดับในรายการ (กดจัดลำดับอัตโนมัติได้) · ตรึงเวลา "ถึงคนแรก"
@@ -440,7 +446,7 @@ function pickupLeg(dd,s){
   const last=pts[pts.length-1];let tail=hav(last,B)*R.rf,extra=0,mm=0;
   if(mkt){mm=mktMin(ok.length);const via=(hav(last,M)+hav(M,B))*R.rf;extra=mm+(via-tail)*60/R.speed;tail=via}
   const first=hav(A,pts[0])*R.rf;km+=first+tail;
-  const T0=hm2min(s==='morning'?R.arrM:R.arrN)-extra;
+  const ov=firstT(dd,s);const T0=ov?hm2min(ov):hm2min(s==='morning'?R.arrM:R.arrN)-extra;   // ตั้งเวลาคนแรกของวันนี้เอง → ใช้ตามนั้น
   return {n:ok.length,miss:miss.length,km,dep:T0-first*60/R.speed,arrive:T0+t+ +R.stop+tail*60/R.speed+mm,
     eta:new Map(ok.map((r,i)=>[r.name,T0+eta[i]])),mkt:mkt?mm:0,links:gmapsLinks(mkt?[...pts,M]:pts,A,B)};
 }
@@ -475,6 +481,7 @@ function dayStats(d){
 
 /* ---------- render ---------- */
 function render(){
+  if(S.day&&S.days[S.day])S.dayWant={m:S.month,d:S.day};   // จำวันที่กำลังดู — ซิงก์แล้วไม่เด้งไปวันอื่น
   document.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected',t.dataset.tab===S.tab));
   const ms=$('#monthSel');
   ms.innerHTML=S.months.length?S.months.map(m=>`<option value="${m.id}" ${m.id===S.month?'selected':''}>${esc(m.label||monthLabel(m.id))}</option>`).join(''):'<option>— ยังไม่มีเดือน —</option>';
@@ -535,13 +542,26 @@ function navBtns(links,label){if(!links||!links.length)return '';
   return links.map((u,i)=>`<a class="navbtn" href="${esc(u)}" target="_blank" rel="noopener">▶ ${label}${links.length>1?` ช่วง ${i+1}`:''}</a>`).join('')}
 function routeBar(dd,s){
   const p=pickupLeg(dd,s),q=dropLeg(dd,s);let h='<div class="route">';
-  if(p.n){h+=`<div class="rleg"><div class="rl"><b>ขารับ</b> ออก ${min2hm(p.dep)} · ถึงคนแรก ${min2hm(p.eta.values().next().value)} · ถึง ${esc(S.route.endName)} ${min2hm(p.arrive)} · <b>${p.km.toFixed(1)} กม.</b>${p.mkt?` · <span class="mk">★ แวะตลาด ${p.mkt} นาที</span>`:''}</div>${navBtns(p.links,'นำทางขารับ')}</div>`}
+  if(p.n){h+=`<div class="rleg"><div class="rl"><b>ขารับ</b> ออก ${min2hm(p.dep)} · <button class="ftbtn ${firstT(dd,s)?'on':''}" data-act="firstT" data-shift="${s}" title="แก้เวลารับคนแรกของวันนี้">ถึงคนแรก ${min2hm(p.eta.values().next().value)} ✎</button> · ถึง ${esc(S.route.endName)} ${min2hm(p.arrive)} · <b>${p.km.toFixed(1)} กม.</b>${p.mkt?` · <span class="mk">★ แวะตลาด ${p.mkt} นาที</span>`:''}</div>${navBtns(p.links,'นำทางขารับ')}</div>`}
   else h+=`<div class="rleg"><div class="rl hint">ขารับ: ยังคำนวณไม่ได้${!rPts().A?' (ตั้งค่าจุดจอดรถก่อน)':''}</div></div>`;
   if(q.none)h+=`<div class="rleg"><div class="rl hint">ขาส่ง ${s==='morning'?'(กะดึกเมื่อวาน)':''}: ไม่มีข้อมูลวันก่อนหน้า</div></div>`;
   else if(q.n)h+=`<details class="rleg drop"><summary class="rl"><b>ขาส่ง</b> ${s==='morning'?'กะดึกเมื่อวาน':'กะเช้าวันนี้'} ${q.n} คน · ออก ${esc(S.route.endName)} ${min2hm(hm2min(s==='morning'?S.route.leaveM:S.route.leaveN))} · <b>${q.km.toFixed(1)} กม.</b></summary>
     <ol class="dl">${q.order.map(r=>`<li>${esc(r.name)} <span class="hint">${esc(r.place||'')} · ${min2hm(q.eta.get(r.name))}</span></li>`).join('')}</ol>${navBtns(q.links,'นำทางขาส่ง')}</details>`;
   const miss=(p.miss||0);if(miss)h+=`<div class="rl warn">⚠ ${miss} คนยังไม่มีพิกัดบ้าน — ไม่ได้อยู่ในเส้นทาง (ไปที่แท็บ “พนักงาน” แล้วกดแก้ไขเพื่อปักหมุด)</div>`;
   return h+'</div>'}
+function editFirstT(s){
+  const R=S.route,def=s==='morning'?R.arrM:R.arrN,cur=firstT(S.day,s),p=pickupLeg(S.day,s);
+  const now=p.n?min2hm(p.eta.values().next().value):(cur||def);
+  openSheet(`<h3>เวลารับคนแรก — ${SH[s].label} วันที่ ${+S.day}</h3>
+   <div class="field"><label for="ft-t">ถึงคนแรก (คนลำดับ 1 ของวันนี้)</label><input id="ft-t" type="time" value="${now}"></div>
+   <p class="hint">คนถัดไปเลื่อนเวลาตามให้เอง · ใช้เฉพาะวันนี้ ${cur?`(ตอนนี้ตั้งไว้ ${cur})`:''} · เวลาปกติทุกวัน = ${def} แก้ได้ที่ ⚙ ตั้งค่าเส้นทาง</p>
+   <div class="foot">${cur?'<button class="ghost" id="ft-reset">ใช้เวลาปกติ</button>':'<span></span>'}<div><button class="ghost" data-act="close">ยกเลิก</button><button class="primary" id="ft-save">บันทึก</button></div></div>`,sh=>{
+    const put=v=>{const m=monDoc();if(!m)return;const ft={...(m.firstT||{})},d={...(ft[S.day]||{})};
+      if(v)d[s]=v;else delete d[s];if(Object.keys(d).length)ft[S.day]=d;else delete ft[S.day];m.firstT=ft;
+      saveMonDoc();closeSheet();render();toast(v?`วันที่ ${+S.day} ถึงคนแรก ${v}`:'ใช้เวลาปกติแล้ว')};
+    sh.querySelector('#ft-save').onclick=()=>{const v=sh.querySelector('#ft-t').value;if(!/^\d{2}:\d{2}$/.test(v)){toast('ใส่เวลา');return}put(v===def?'':v)};
+    const rs=sh.querySelector('#ft-reset');if(rs)rs.onclick=()=>put('')});
+}
 function shiftCard(d,s){
   const list=d[s]||[];const p=list.length?pickupLeg(S.day,s):{n:0};
   let h=`<section class="shift ${s} ${S.mShift&&S.mShift!==s?'m-hide':''}"><div class="shift-h"><h3>${SH[s].label}<span class="t">${SH[s].time} · ${list.length} คน${list.some(r=>r.status!=='no')?` · กลับ ${list.filter(r=>r.back).length}/${list.filter(r=>r.status!=='no').length}`:''}</span></h3>
@@ -762,7 +782,7 @@ async function writeMonth(id,days){
     if(!empOf(r)){const e={id:empKey(r.name),eid:r.eid||'',name:r.name,team:r.team,phone:r.phone,place:r.place,order:S.emps.length+1,lat:null,lng:null};seedEmp(e);S.emps.push(e);saveEmp(e)}});
   if(!S.months.some(m=>m.id===id))S.months.push({id,label:monthLabel(id)});
   S.months.sort((a,b)=>b.id.localeCompare(a.id));
-  await saveDoc(`months/${id}`,{label:monthLabel(id),updatedAt:new Date().toISOString()});
+  {const {id:_i,...old}=S.months.find(m=>m.id===id)||{};await saveDoc(`months/${id}`,{...old,label:monthLabel(id),updatedAt:new Date().toISOString()})}
   selectMonth(id);S.days=days;pickDay();render.scrolled=false;render();
   for(const [k,d] of Object.entries(days))saveDoc(`months/${id}/days/${k}`,d);
 }
@@ -1069,6 +1089,7 @@ document.addEventListener('click',e=>{
     case 'ot': d[s][i].ot=!d[s][i].ot;saveDay(S.day);break;
     case 'mv':{const j=i+(+t.dataset.d);const L=d[s];[L[i],L[j]]=[L[j],L[i]];saveDay(S.day);break}
     case 'edit': editRider(s,i);break;
+    case 'firstT': if(!document.body.classList.contains('ro'))editFirstT(s);break;
     case 'add': addRider(s);break;
     case 'empAdd': editEmp(null);break;
     case 'empEdit': editEmp(t.dataset.id);break;
