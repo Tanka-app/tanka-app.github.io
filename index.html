@@ -1043,8 +1043,9 @@ function openRouteSettings(){const R=S.route;const f=(id,lab,v,ph='')=>`<div cla
    <div class="row2"><div class="field"><label for="r-arrN">รอบดึก: ถึงคนแรก</label><input id="r-arrN" type="time" value="${R.arrN}"></div><div class="field"><label for="r-leaveN">รอบดึก: ออกจากโรงงาน (ขาส่ง)</label><input id="r-leaveN" type="time" value="${R.leaveN}"></div></div>
    <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="r-marketOn" ${R.marketOn?'checked':''} style="min-height:auto"> แวะตลาดก่อนเข้าโรงงาน (ขารับรอบเช้า)</label>
    <div class="row2">${f('market','พิกัดตลาด',R.market)}<div class="field"><label for="r-marketDow">วัน</label><select id="r-marketDow">${TH_D.map((t,i)=>`<option value="${i}" ${+R.marketDow===i?'selected':''}>${t}</option>`).join('')}</select></div></div>
+   <div class="field"><label for="r-stop">เวลาพนักงานขึ้นรถ (นาที/คน)</label><input id="r-stop" type="number" step="0.5" min="0" value="${R.stop}"><span class="hint">บวกเพิ่มทุกคนหลังรับคนแรก เช่น 1–2 นาที</span></div>
    <details class="cfg"><summary>ค่าคำนวณ (ขั้นสูง)</summary>
-    <div class="row2"><div class="field"><label for="r-speed">ความเร็วเฉลี่ย (กม./ชม.)</label><input id="r-speed" type="number" step="1" value="${R.speed}"></div><div class="field"><label for="r-stop">เวลาจอดรับต่อจุด (นาที)</label><input id="r-stop" type="number" step="0.5" value="${R.stop}"></div></div>
+    <div class="field"><label for="r-speed">ความเร็วเฉลี่ย (กม./ชม.)</label><input id="r-speed" type="number" step="1" value="${R.speed}"></div>
     <div class="field"><label for="r-rf">ตัวคูณระยะถนน (ระยะเส้นตรง × ค่านี้)</label><input id="r-rf" type="number" step="0.05" value="${R.rf}"><span class="hint">ถ้าระยะในแอปน้อยกว่าเลขไมล์จริง ให้เพิ่มค่านี้</span></div>
    </details>
    <div class="foot"><button class="ghost" id="r-reset">คืนค่าเริ่มต้น</button><div><button class="ghost" data-act="close">ยกเลิก</button><button class="primary" id="r-save">บันทึก</button></div></div>`,sh=>{
