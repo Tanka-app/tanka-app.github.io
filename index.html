@@ -1678,6 +1678,8 @@ async function sendCarRequest(f){
 /* ---------- 🔗 แชร์ใบขอรถเสริมให้ผู้ให้บริการรถเสริม (ต้องรัน supabase/009_share.sql) ---------- */
 // ผู้อนุมัติ (แอดมินคาร์เรนท์) กดจากคำขอรถเสริมที่อนุมัติแล้ว → ได้ลิงก์ ?s=TOKEN ส่งทาง LINE
 // ผู้รับเปิดลิงก์ได้ไม่ต้องล็อกอิน · ข้อมูลถูกคัดลอก ณ ตอนแชร์ · หมดอายุ/ยกเลิกได้
+// หน้าต่าง (sheet) และข้อความแจ้งเตือน ต้องอยู่เหนือหน้าบริษัท (#gate z-index 40) — ไม่งั้นกดแล้วเหมือนไม่เกิดอะไร
+(function(){const st=document.createElement('style');st.textContent='#sheetHost .scrim{z-index:60}.toast{z-index:70}';document.head.appendChild(st)})();
 const SHARE_TH_M=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
 const SHARE_TH_D=['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
 function shareUrl(tok){return location.origin+location.pathname+'?s='+encodeURIComponent(tok)}
