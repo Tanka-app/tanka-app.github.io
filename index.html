@@ -306,6 +306,7 @@ body.ro #m-imp,body.ro #m-new,body.ro #m-set,body.ro #m-van,body.ro #m-all,body.
     <div class="tools">
       <select id="monthSel" aria-label="เลือกเดือน"></select>
       <button id="btnImport" class="only-d">นำเข้าตารางกะ</button>
+      <button id="btnPhoto" class="only-d">📷 จากรูป/PDF</button>
       <button id="btnNew" class="only-d">สร้างเดือนใหม่</button>
       <button id="btnSync" class="sync" title="ซิงก์กับจอรถ"><span class="sd"></span><span id="syncTxt">จอรถ</span></button>
       <button id="btnExport" class="only-d">ส่งออก Excel</button>
@@ -738,7 +739,7 @@ function parseShiftTable(rows,fname,forceMonth){
   const y=monthId?+monthId.slice(0,4):new Date().getFullYear(),mo=monthId?+monthId.slice(5):new Date().getMonth()+1;const nd=new Date(y,mo,0).getDate();
   for(let i=1;i<=nd;i++)days[pad(i)]={d:i,weekday:TH_D[new Date(y,mo-1,i).getDay()],morning:[],night:[]};
   for(const r of rows.slice(hi+1)){const id=cId>=0?str(r[cId]):'';const name=str(r[cName]);
-    if(!name||(cId>=0&&!/^\d{4,}$/.test(id)))continue;
+    if(!name||(cId>=0&&!(/^📷/.test(fname||'')&&!id)&&!/^\d{4,}$/.test(id)))continue;
     const p={eid:id,name,team:cTeam>=0?str(r[cTeam]):'',phone:cPhone>=0?str(r[cPhone]):'',place:cPlace>=0?str(r[cPlace]):'',codes:{}};people.push(p);
     for(const [c,n] of Object.entries(dayCols)){if(n>nd)continue;const code=str(r[c]).toUpperCase().replace(/\s/g,'');if(!code)continue;p.codes[n]=code;
       const sh=MORNING_C.has(code)?'morning':NIGHT_C.has(code)?'night':null;if(!sh)continue;
@@ -1109,6 +1110,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSheet()});
 document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{S.tab=t.dataset.tab;render.scrolled=false;render()});
 $('#monthSel').onchange=e=>{render.scrolled=false;selectMonth(e.target.value)};
 $('#btnImport').onclick=()=>$('#file').click();
+$('#btnPhoto').onclick=()=>ocrOpen();
 $('#file').onchange=e=>{const f=e.target.files[0];if(f)onFile(f);e.target.value=''};
 $('#btnNew').onclick=newMonth;
 $('#btnExport').onclick=doExport;
@@ -1117,6 +1119,7 @@ $('#btnAcc').onclick=openAccount;
 if($('#btnAll'))$('#btnAll').onclick=exportAll;
 $('#btnMore').onclick=()=>openSheet(`<h3>เมนู</h3>
   <button id="m-imp" class="primary" style="min-height:48px">นำเข้าตารางกะ (Excel)</button>
+  <button id="m-photo" style="min-height:48px">📷 นำเข้าตารางกะจากรูป/PDF (AI)</button>
   <button id="m-new" style="min-height:48px">สร้างเดือนใหม่</button>
   <button id="m-exp" class="primary" style="min-height:48px" ${!S.month||!Object.keys(S.days).length?'disabled':''}>ส่งออก Excel ${S.month?esc(monthLabel(S.month)):''}</button>
   <button id="m-van" style="min-height:48px">🚐 ซิงก์กับจอรถ</button>
@@ -1129,6 +1132,7 @@ $('#btnMore').onclick=()=>openSheet(`<h3>เมนู</h3>
   sh.querySelector('#m-acc').onclick=()=>{closeSheet();openAccount()};
   sh.querySelector('#m-all').onclick=()=>{closeSheet();exportAll()};
   sh.querySelector('#m-imp').onclick=()=>{closeSheet();$('#file').click()};
+  sh.querySelector('#m-photo').onclick=()=>{closeSheet();ocrOpen()};
   sh.querySelector('#m-new').onclick=()=>{closeSheet();newMonth()};
   sh.querySelector('#m-exp').onclick=()=>{closeSheet();doExport()};
 });
@@ -1449,7 +1453,7 @@ function reqCard(r,ctx,canDecide){
   return `<div class="g-req st-${r.status}"><div class="g-rh"><b>${esc(KIND_TH[r.kind]||r.kind)}</b>${line?` · ${esc(line.name)}`:''}<span class="g-st">${ST_TH[r.status]}</span></div>
     ${r.summary?`<div>${esc(r.summary)}</div>`:''}${reqDetail(r,ctx)}
     <div class="hint">ขอโดย ${esc(r.requested_label||'')} · ${fmtT(r.created_at)}${r.decided_at?` · ${ST_TH[r.status]}โดย ${esc(r.decided_label||'')} ${fmtT(r.decided_at)}`:''}${r.note?` · ${esc(r.note)}`:''}</div>
-    ${r.kind==='car_request'&&r.status==='approved'?`<div class="g-row"><button data-share="${r.id}">🔗 แชร์ให้รถเสริม</button></div>`:''}${r.status==='pending'&&sup&&!ctx.super?'<div class="hint">⏳ การลบต้องรอผู้ดูแลระบบ TanKa อนุมัติ</div>':''}${r.status==='pending'?`<div class="g-row">${canDecide?`<button class="danger" data-rej="${r.id}">ไม่อนุมัติ</button><button class="primary" data-ok="${r.id}">อนุมัติ</button>`:''}${r.mine?`<button class="ghost" data-cancel="${r.id}">ยกเลิกคำขอ</button>`:''}</div>`:''}</div>`;
+    ${r.kind==='car_request'&&r.status==='approved'?`<div class="g-row"><button data-share="${r.id}">🔗 แชร์ให้รถเสริม</button></div>`:''}${ctx.super&&r.status!=='pending'?`<div class="g-row"><button class="danger" data-delhist="request" data-id="${r.id}">🗑 ลบประวัติ</button></div>`:''}${r.status==='pending'&&sup&&!ctx.super?'<div class="hint">⏳ การลบต้องรอผู้ดูแลระบบ TanKa อนุมัติ</div>':''}${r.status==='pending'?`<div class="g-row">${canDecide?`<button class="danger" data-rej="${r.id}">ไม่อนุมัติ</button><button class="primary" data-ok="${r.id}">อนุมัติ</button>`:''}${r.mine?`<button class="ghost" data-cancel="${r.id}">ยกเลิกคำขอ</button>`:''}</div>`:''}</div>`;
 }
 function wireReq(root,after){
   root.querySelectorAll('[data-share]').forEach(b=>b.onclick=()=>shareSheet(b.dataset.share));
@@ -1477,7 +1481,7 @@ function auditWhat(a){
   if(a.what.startsWith('months/'))return 'เดือน '+esc(a.what.slice(7));
   return esc(a.what);
 }
-function auditRows(list,vans){return list.length?`<div class="g-audit">${list.map(a=>`<div><span class="hint">${fmtT(a.at)}</span> <b>${esc(a.actor_label||'')}</b>${vans?` · ${esc((vans.find(v=>v.id===a.van_id)||{}).name||'')}`:''}<br>${auditWhat(a)}</div>`).join('')}</div>`:'<p class="hint">ยังไม่มีประวัติ</p>'}
+function auditRows(list,vans){const su=window.__isSuper||(typeof CTX!=='undefined'&&CTX.super);return list.length?`<div class="g-audit">${list.map(a=>`<div>${su?`<button class="ghost" data-delhist="audit" data-id="${a.id}" title="ลบรายการนี้" style="float:right;min-height:30px;padding:0 8px">🗑</button>`:''}<span class="hint">${fmtT(a.at)}</span> <b>${esc(a.actor_label||'')}</b>${vans?` · ${esc((vans.find(v=>v.id===a.van_id)||{}).name||'')}`:''}<br>${auditWhat(a)}</div>`).join('')}</div>`:'<p class="hint">ยังไม่มีประวัติ</p>'}
 
 async function showConsole(coId,tab){
   gate('<p>กำลังโหลด…</p>');
@@ -1502,7 +1506,7 @@ async function showConsole(coId,tab){
     sb.from('change_requests').select('*').eq('company_id',C).order('created_at',{ascending:false}).limit(60).then(r=>r.data||[]),
     rpc('company_people',{p_company:C}).catch(()=>({members:[],tenant_viewers:[],owner_emails:{}}))]);
   reqs.forEach(r=>r.mine=r.requested_by===user.id);
-  const ctx={vans,drivers,vehicles,owners,tenants,super:!!sc.super};
+  const ctx={vans,drivers,vehicles,owners,tenants,super:!!sc.super};window.__isSuper=!!sc.super;
   const pend=reqs.filter(r=>r.status==='pending');
   const vName=id=>{const v=vehicles.find(x=>x.id===id);return v?`${v.plate}${v.name?' '+v.name:''}`:''};
   const oName=id=>(owners.find(o=>o.id===id)||{}).name||'';
@@ -1569,14 +1573,14 @@ async function showConsole(coId,tab){
     openVan({vanId:v.id,companyId:C,vanName:v.name,vanCode:v.code,who:user.email,role:'company',approver,access:'edit',super:!!sc.super})});
   G.querySelectorAll('[data-pin]').forEach(b=>b.onclick=()=>{const pin=prompt('PIN ใหม่ (ตัวเลข 4-6 หลัก) — คนขับคนนี้ต้องเข้าระบบใหม่');if(pin)run(()=>rpc('set_driver',{p_driver:b.dataset.pin,p_pin:pin}),'เปลี่ยน PIN แล้ว')});
   G.querySelectorAll('[data-ond]').forEach(b=>b.onclick=()=>run(()=>rpc('set_driver',{p_driver:b.dataset.ond,p_active:true})));
-  G.querySelectorAll('[data-offd]').forEach(b=>b.onclick=()=>{if(!confirm(approver?'ปิดคนขับคนนี้? เครื่องของเขาจะออกจากระบบทันที':'ส่งคำขอปิดคนขับคนนี้?'))return;
-    run(()=>rpc('request_change',{p_van:b.dataset.van,p_kind:'line_assign',p_payload:{deactivate_driver:b.dataset.offd},p_summary:'ปิดคนขับ'}),approver?'ปิดแล้ว':'ส่งขออนุมัติแล้ว')});
+  G.querySelectorAll('[data-offd]').forEach(b=>b.onclick=()=>{if(!confirm('ส่งคำขอปิดคนขับคนนี้? (มีผลเมื่อกดอนุมัติ)'))return;
+    run(()=>rpc('request_change',{p_van:b.dataset.van,p_kind:'line_assign',p_payload:{deactivate_driver:b.dataset.offd},p_summary:'ปิดคนขับ'}),approver?'ส่งคำขอแล้ว — กดอนุมัติในแท็บ “คำขอ”':'ส่งขออนุมัติแล้ว')});
   G.querySelectorAll('[data-assign]').forEach(b=>b.onclick=()=>{const box=b.closest('details'),v=vans.find(x=>x.id===b.dataset.assign),f=k=>box.querySelector(`[data-f="${k}"]`).value.trim();
     const p={};if((f('veh')||null)!==(v.vehicle_id||null))p.vehicle_id=f('veh')||null;if((f('ten')||null)!==(v.tenant_id||null))p.tenant_id=f('ten')||null;
     if(f('dn')){if(!/^\d{4,6}$/.test(f('pin'))){gErr('PIN ต้องเป็นตัวเลข 4-6 หลัก');return}p.new_driver={name:f('dn'),phone:f('dp'),pin:f('pin')}}
     if(!Object.keys(p).length){gErr('ยังไม่ได้เปลี่ยนอะไร');return}
     const sum=[p.vehicle_id!==undefined?'เปลี่ยนรถ':'',p.tenant_id!==undefined?'เปลี่ยนผู้เช่า':'',p.new_driver?'เพิ่มคนขับ '+p.new_driver.name:''].filter(Boolean).join(' · ');
-    run(()=>rpc('request_change',{p_van:v.id,p_kind:'line_assign',p_payload:p,p_summary:sum}),approver?'บันทึกแล้ว':'ส่งขออนุมัติแล้ว')});
+    run(()=>rpc('request_change',{p_van:v.id,p_kind:'line_assign',p_payload:p,p_summary:sum}),approver?'ส่งคำขอแล้ว — กดอนุมัติในแท็บ “คำขอ”':'ส่งขออนุมัติแล้ว')});
   const on=(id,fn)=>{const el=$('#'+id);if(el)el.onclick=fn};
   on('co-rn',()=>{const n=prompt('ชื่อบริษัท',co.name);if(n&&n.trim()&&n.trim()!==co.name)run(()=>rpc('update_company',{p_company:C,p_name:n.trim()}),'แก้ชื่อบริษัทแล้ว')});
   on('co-del',async()=>{const n=prompt(`ลบบริษัท "${co.name}" ถาวร?\nสาย ตาราง พนักงาน คนขับ รถ เจ้าของรถ ผู้เช่า และคำขอทั้งหมดของบริษัทนี้จะหาย กู้คืนไม่ได้\n\nพิมพ์ชื่อบริษัทให้ตรงเพื่อยืนยัน`);if(n===null)return;
@@ -1690,7 +1694,7 @@ async function shareSheet(reqId){
   const list=()=>shares.length?shares.map(s=>{const dead=s.revoked_at||new Date(s.expires_at)<new Date();
     return `<div class="g-req ${dead?'st-cancelled':'st-approved'}"><div class="g-rh"><b>${esc(s.provider||'(ไม่ระบุผู้รับ)')}</b>${s.with_coords?' · 📍':''}<span class="g-st">${s.revoked_at?'ยกเลิกแล้ว':dead?'หมดอายุ':'ใช้ได้ถึง '+shareWhen(s.expires_at)}</span></div>
       <div class="hint">สร้าง ${shareWhen(s.created_at)} โดย ${esc(s.created_label||'')} · เปิดแล้ว ${s.views} ครั้ง${s.last_view_at?' (ล่าสุด '+shareWhen(s.last_view_at)+')':''}</div>
-      ${dead?'':`<div class="g-row"><button data-copy="${esc(s.token)}">คัดลอกลิงก์</button><a class="navbtn" href="https://line.me/R/msg/text/?${encodeURIComponent(shareUrl(s.token))}" target="_blank" rel="noopener">ส่ง LINE</a><button class="danger" data-revoke="${s.id}">ยกเลิกลิงก์</button></div>`}</div>`}).join(''):'<p class="hint">ยังไม่เคยแชร์คำขอนี้</p>';
+      ${dead?'':`<div class="g-row"><button data-copy="${esc(s.token)}">คัดลอกลิงก์</button><a class="navbtn" href="https://line.me/R/msg/text/?${encodeURIComponent(shareUrl(s.token))}" target="_blank" rel="noopener">ส่ง LINE</a><button class="danger" data-revoke="${s.id}">ยกเลิกลิงก์</button></div>`}${shareSuper()?`<div class="g-row"><button class="danger" data-delhist="share" data-id="${s.id}">🗑 ลบประวัติ</button></div>`:''}</div>`}).join(''):'<p class="hint">ยังไม่เคยแชร์คำขอนี้</p>';
   openSheet(`<h3>🔗 แชร์ให้ผู้ให้บริการรถเสริม</h3>
    <p class="hint">ผู้รับเปิดลิงก์ได้โดยไม่ต้องล็อกอิน เห็นเฉพาะคนที่ขึ้นรถเสริม: ชื่อ เบอร์ จุดรับ และพิกัดพร้อมปุ่มนำทาง · ลิงก์เป็นข้อมูล ณ ตอนแชร์ ถ้าแก้รายชื่อทีหลังให้แชร์ใหม่</p>
    <div class="field"><label for="sh-prov">ส่งให้ (ชื่อบริษัท/คนขับรถเสริม)</label><input id="sh-prov" value="${esc((S.form&&S.form.shareProvider)||'')}" placeholder="เช่น หจก.รถตู้ใจดี / พี่สมศักดิ์"></div>
@@ -1768,6 +1772,480 @@ html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui
     document.getElementById('sv-copy').onclick=async e=>{e.preventDefault();try{await navigator.clipboard.writeText(shareText(d,location.href));e.target.textContent='คัดลอกแล้ว ✓'}catch{e.target.textContent='คัดลอกไม่ได้ในเบราว์เซอร์นี้'}};
   })();
   return true;
+}
+
+// ---------- ลบประวัติ (เฉพาะผู้ดูแลระบบ TanKa) — ใช้กับคำขอ · ลิงก์แชร์ · ประวัติการแก้ไข ----------
+function shareSuper(){return !!(window.__isSuper||(typeof CTX!=='undefined'&&CTX.super))}
+document.addEventListener('click',async e=>{
+  const b=e.target.closest('[data-delhist]');if(!b)return;e.preventDefault();e.stopPropagation();
+  if(!b.classList.contains('armed')){b.classList.add('armed');b.dataset.t=b.textContent;b.textContent='กดอีกครั้งเพื่อลบถาวร';setTimeout(()=>{if(b.isConnected&&!b.disabled){b.classList.remove('armed');b.textContent=b.dataset.t}},4000);return}
+  b.disabled=true;
+  try{await rpc('super_delete_history',{p_kind:b.dataset.delhist,p_id:b.dataset.id});const row=b.closest('.g-req, .g-audit > div');if(row)row.remove();toast('ลบประวัติแล้ว')}
+  catch(err){toast(err.message);b.disabled=false}
+},true);
+
+/* ---------- 📷 นำเข้าตารางกะจากรูป/PDF ด้วย AI (ต้องรัน supabase/008_ocr.sql + deploy Edge Function shift-ocr) ---------- */
+// TanKa — ฝั่งหน้าเว็บของ "นำเข้าตารางกะจากรูป"
+// ใช้ได้ทั้งในแอป (ocr_app.js) และหน้า Lab · ไม่มีคีย์/ความลับใด ๆ ในไฟล์นี้
+(function (g) {
+  const MAX_DAYS = 31;
+  const MORNING = new Set(['1', '1OT', 'M', 'MOT', 'D']);   // ตรงกับ MORNING_C ในแอป
+  const NIGHT = new Set(['2', '2OT', 'N', 'NOT']);           // ตรงกับ NIGHT_C ในแอป
+  const TH_M = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+  const TH_DS = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+  const pad = n => String(n).padStart(2, '0');
+  const str = v => (v == null ? '' : String(v)).trim();
+  const esc = s => str(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const normCode = v => str(v).toUpperCase().replace(/\s+/g, '');
+  const shiftOf = c => (MORNING.has(c) ? 'm' : NIGHT.has(c) ? 'n' : '');
+  const daysIn = monthId => { const m = /^(\d{4})-(\d{2})$/.exec(monthId || ''); return m ? new Date(+m[1], +m[2], 0).getDate() : MAX_DAYS; };
+
+  // ---------- รูป → JPEG base64 (ย่อ + หมุนตาม EXIF) ----------
+  async function prepImage(file, maxEdge = 2000, quality = 0.85) {
+    let bmp;
+    try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
+    catch { bmp = await createImageBitmap(file); }
+    const k = Math.min(1, maxEdge / Math.max(bmp.width, bmp.height));
+    const w = Math.round(bmp.width * k), h = Math.round(bmp.height * k);
+    const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    const cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, w, h); cx.drawImage(bmp, 0, 0, w, h);
+    const dataUrl = cv.toDataURL('image/jpeg', quality);
+    return { data: dataUrl.split(',')[1], media_type: 'image/jpeg', w, h, dataUrl, bytes: Math.round(dataUrl.length * 0.75) };
+  }
+
+  // canvas → ผลแบบเดียวกับ prepImage
+  function fromCanvas(cv, quality, extra) {
+    const dataUrl = cv.toDataURL('image/jpeg', quality);
+    return Object.assign({ data: dataUrl.split(',')[1], media_type: 'image/jpeg', w: cv.width, h: cv.height, dataUrl, bytes: Math.round(dataUrl.length * 0.75) }, extra || {});
+  }
+
+  // ---------- PDF (ไฟล์สแกน/ไฟล์จากเครื่องพิมพ์) → รูปทีละหน้า ด้วย pdf.js ----------
+  const PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+  let pdfLoading = null;
+  function loadPdfJs() {
+    if (g.pdfjsLib) return Promise.resolve(g.pdfjsLib);
+    if (!pdfLoading) pdfLoading = new Promise((ok, bad) => {
+      const s = document.createElement('script'); s.src = PDFJS + 'pdf.min.js';
+      s.onload = () => { if (!g.pdfjsLib) return bad(new Error('โหลดตัวอ่าน PDF ไม่สำเร็จ')); g.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + 'pdf.worker.min.js'; ok(g.pdfjsLib); };
+      s.onerror = () => { pdfLoading = null; bad(new Error('โหลดตัวอ่าน PDF ไม่สำเร็จ — ต้องต่ออินเทอร์เน็ต')); };
+      document.head.appendChild(s);
+    });
+    return pdfLoading;
+  }
+  const isPdf = f => /pdf/i.test(f.type || '') || /\.pdf$/i.test(f.name || '');
+  // ขนาดรูปจากหัวไฟล์ JPEG (SOF) — PDF บางไฟล์เก็บ Width/Height เป็นการอ้างอิง อ่านจาก dict ไม่ได้
+  function jpegSize(b, i) {
+    i += 2;
+    while (i + 9 < b.length) {
+      if (b[i] !== 0xFF) return null; const mk = b[i + 1];
+      if (mk === 0xFF) { i++; continue; }
+      if (mk >= 0xC0 && mk <= 0xCF && mk !== 0xC4 && mk !== 0xC8 && mk !== 0xCC) return { h: (b[i + 5] << 8) | b[i + 6], w: (b[i + 7] << 8) | b[i + 8] };
+      i += 2 + ((b[i + 2] << 8) | b[i + 3]);
+    }
+    return null;
+  }
+  // ทางลัดสำหรับ PDF สแกน: ดึงรูป JPEG ที่ฝังอยู่ออกมาตรง ๆ (เร็วกว่าให้ pdf.js วาดรูปสแกน 100+ ล้านพิกเซลมาก)
+  function scannedJpegs(bytes) {
+    const s = new TextDecoder('latin1').decode(bytes); const out = []; const re = /\/Filter\s*\[?\s*\/DCTDecode/g; let m;
+    while ((m = re.exec(s))) {
+      const o = s.lastIndexOf(' obj', m.index); const k = s.indexOf('stream', m.index); if (o < 0 || k < 0) continue;
+      const dict = s.slice(o, k); if (!/\/Subtype\s*\/Image/.test(dict)) continue;
+      let a = k + 6; if (s[a] === '\r') a++; if (s[a] === '\n') a++;
+      if (bytes[a] !== 0xFF || bytes[a + 1] !== 0xD8) continue;                   // ต้องเป็น JPEG จริง
+      const sz = jpegSize(bytes, a); if (!sz || sz.w * sz.h < 1e6) continue;       // ข้ามโลโก้/รูปเล็ก
+      const e = s.indexOf('endstream', a); if (e < 0) continue;
+      let b = e; while (b > a && /[\r\n\s]/.test(s[b - 1])) b--;
+      const w = sz.w, h = sz.h;
+      out.push({ blob: new Blob([bytes.subarray(a, b)], { type: 'image/jpeg' }), w, h });
+    }
+    return out;
+  }
+  async function prepPdf(file, maxEdge = 2000, quality = 0.85, maxPages = 4) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const jp = scannedJpegs(bytes);
+    if (jp.length) {
+      const out = [];
+      for (const [i, j] of jp.slice(0, maxPages).entries()) {
+        const k = Math.min(1, maxEdge / Math.max(j.w, j.h)); const w = Math.round(j.w * k), h = Math.round(j.h * k);
+        let bmp; try { bmp = await createImageBitmap(j.blob, { resizeWidth: w, resizeHeight: h, resizeQuality: 'high' }); } catch { bmp = await createImageBitmap(j.blob); }
+        const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+        const cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, w, h); cx.drawImage(bmp, 0, 0, w, h); bmp.close && bmp.close();
+        out.push(fromCanvas(cv, quality, { page: i + 1, pages: jp.length, name: file.name }));
+      }
+      return out;
+    }
+    const lib = await loadPdfJs();
+    const doc = await lib.getDocument({ data: bytes }).promise;
+    const out = [];
+    try {
+      for (let n = 1; n <= Math.min(doc.numPages, maxPages); n++) {
+        const pg = await doc.getPage(n); const v1 = pg.getViewport({ scale: 1 });
+        const vp = pg.getViewport({ scale: maxEdge / Math.max(v1.width, v1.height) });
+        const cv = document.createElement('canvas'); cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
+        const cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height);
+        await pg.render({ canvasContext: cx, viewport: vp }).promise; pg.cleanup();
+        out.push(fromCanvas(cv, quality, { page: n, pages: doc.numPages, name: file.name }));
+      }
+    } finally { doc.destroy(); }
+    return out;
+  }
+  // รูปหรือ PDF → [รูป] (PDF ได้หลายหน้า)
+  async function prepFile(file, maxEdge = 2000, quality = 0.85, maxPages = 4) {
+    if (isPdf(file)) return prepPdf(file, maxEdge, quality, maxPages);
+    const im = await prepImage(file, maxEdge, quality); im.name = file.name; return [im];
+  }
+  // หมุนรูป 90° (deg = 90 หรือ -90) — สำหรับตารางที่สแกนแนวนอนแต่หน้าเป็นแนวตั้ง
+  async function rotateImage(im, deg, quality = 0.85) {
+    const bmp = await new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = bad; i.src = im.dataUrl; });
+    const cv = document.createElement('canvas'); cv.width = bmp.height; cv.height = bmp.width;
+    const cx = cv.getContext('2d'); cx.translate(cv.width / 2, cv.height / 2); cx.rotate(deg * Math.PI / 180); cx.drawImage(bmp, -bmp.width / 2, -bmp.height / 2);
+    return fromCanvas(cv, quality, { page: im.page, pages: im.pages, name: im.name });
+  }
+  // แบ่งรูปเป็นครึ่งบน/ครึ่งล่าง (ซ้อนกันเล็กน้อย) — ให้ AI เห็นตัวหนังสือใหญ่ขึ้นและตอบสั้นลงต่อส่วน
+  async function splitImage(im, quality = 0.85) {
+    const bmp = await new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = bad; i.src = im.dataUrl; });
+    const W = bmp.width, H = bmp.height, ov = Math.round(H * 0.03), half = Math.ceil(H / 2);
+    return [[0, half + ov], [half - ov, H]].map(([y0, y1], k) => {
+      const cv = document.createElement('canvas'); cv.width = W; cv.height = y1 - y0;
+      cv.getContext('2d').drawImage(bmp, 0, y0, W, y1 - y0, 0, 0, W, y1 - y0);
+      return fromCanvas(cv, quality, { page: im.page, pages: im.pages, name: im.name, part: k ? 'ล่าง' : 'บน' });
+    });
+  }
+  // แสดงรูปย่อพร้อมปุ่มหมุน (ใช้ทั้ง Lab และแอป) · imgs ถูกแก้ในที่
+  function mountThumbs(host, imgs, opts = {}) {
+    const h = opts.height || 96;
+    const draw = () => {
+      host.innerHTML = imgs.map((im, i) => `<div style="display:inline-flex;flex-direction:column;gap:2px;align-items:center;margin:0 6px 6px 0">
+<a href="${im.dataUrl}" target="_blank" rel="noopener"><img src="${im.dataUrl}" alt="รูปที่ ${i + 1}" style="height:${h}px;max-width:220px;object-fit:contain;border-radius:6px;border:1px solid var(--line,#d6dde4);display:block"></a>
+<span style="display:flex;gap:4px;align-items:center;font-size:11px;color:var(--muted,#5b6977)">
+<button type="button" data-rot="${i}" data-deg="-90" title="หมุนซ้าย" aria-label="หมุนรูปที่ ${i + 1} ซ้าย" style="min-height:28px;padding:0 8px">⟲</button>
+${im.page ? `หน้า ${im.page}/${im.pages}` : `${im.w}×${im.h}`}${im.part ? ` (${im.part})` : ''}
+<button type="button" data-rot="${i}" data-deg="90" title="หมุนขวา" aria-label="หมุนรูปที่ ${i + 1} ขวา" style="min-height:28px;padding:0 8px">⟳</button>
+${!im.part && imgs.length < 4 ? `<button type="button" data-split="${i}" title="แบ่งเป็นครึ่งบน/ครึ่งล่าง" aria-label="แบ่งรูปที่ ${i + 1} เป็น 2 ส่วน" style="min-height:28px;padding:0 8px">✂</button>` : ''}
+<button type="button" data-del="${i}" title="เอารูปนี้ออก" aria-label="เอารูปที่ ${i + 1} ออก" style="min-height:28px;padding:0 8px">✕</button></span></div>`).join('')
+        + (imgs.length ? `<div style="font-size:12px;color:var(--muted,#5b6977);width:100%">ตัวหนังสือในรูปต้องตั้งตรง (อ่านซ้ายไปขวา) — ถ้านอนอยู่ให้กด ⟲ หรือ ⟳ · ตารางแน่นมากกด ✂ แบ่งครึ่ง</div>` : '');
+    };
+    host.onclick = async e => {
+      const b = e.target.closest('[data-rot],[data-split],[data-del]'); if (!b) return; e.preventDefault();
+      if (b.dataset.rot != null) { const i = +b.dataset.rot; imgs[i] = await rotateImage(imgs[i], +b.dataset.deg); }
+      else if (b.dataset.split != null) { const i = +b.dataset.split; imgs.splice(i, 1, ...(await splitImage(imgs[i]))); }
+      else imgs.splice(+b.dataset.del, 1);
+      draw(); opts.onChange && opts.onChange(imgs);
+    };
+    draw(); return { redraw: draw };
+  }
+
+  // ---------- ผล AI → แถวแบบ Excel (ให้ parseShiftTable ของแอปอ่านต่อ) ----------
+  function toRows(result, monthId) {
+    const nd = daysIn(monthId);
+    const m = /^(\d{4})-(\d{2})$/.exec(monthId || '');
+    const rows = [[m ? `ตารางกะ ${TH_M[+m[2] - 1]} ${m[1]}` : 'ตารางกะ (จากรูป)'],
+      ['เลขประจำตัว', 'ชื่อ', 'ทีม', 'เบอร์โทร', 'จุดรับ', ...Array.from({ length: nd }, (_, i) => i + 1)]];
+    for (const p of result.people) {
+      if (!str(p.name) || p.out) continue;
+      rows.push([str(p.eid), str(p.name), str(p.team), str(p.phone), str(p.place), ...p.codes.slice(0, nd).map(normCode)]);
+    }
+    return rows;
+  }
+
+  // ---------- สรุปจำนวน ----------
+  function stats(result, monthId) {
+    const nd = daysIn(monthId); let m = 0, n = 0, ot = 0, cells = 0;
+    const act = result.people.filter(p => !p.out);
+    for (const p of act) for (let d = 0; d < nd; d++) {
+      const c = p.codes[d]; if (!c) continue; cells++;
+      const s = shiftOf(c); if (s === 'm') m++; else if (s === 'n') n++;
+      if (/OT$/.test(c)) ot++;
+    }
+    const freq = {}; act.forEach(p => p.codes.slice(0, nd).forEach(c => { if (c) freq[c] = (freq[c] || 0) + 1; }));
+    const odd = Object.keys(freq).filter(c => !/^[A-Z0-9]{1,4}$/.test(c) || (cells >= 30 && freq[c] === 1)).length;
+    const outIdx = new Set(result.people.map((p, i) => (p.out ? i : -1)));
+    return { people: act.length, cells, morning: m, night: n, ot, odd, uncertain: result.uncertain.filter(u => !outIdx.has(u.person)).length, noId: act.filter(p => !p.eid).length,
+      matched: act.filter(p => p.match).length, fresh: act.filter(p => p.match === null).length,
+      out: result.people.length - act.length, missing: (result.missingKnown || []).length };
+  }
+
+  // ---------- ตารางตรวจ/แก้ (แก้แล้วเปลี่ยน result โดยตรง) ----------
+  const CSS = `
+.ocr-wrap{overflow:auto;max-height:60vh;border:1px solid var(--line,#d6dde4);border-radius:8px;background:var(--surface,#fff)}
+.ocr-grid{border-collapse:separate;border-spacing:0;font-size:13px}
+.ocr-grid th,.ocr-grid td{border-bottom:1px solid var(--line,#d6dde4);border-right:1px solid var(--line,#d6dde4);padding:0;text-align:center;white-space:nowrap}
+.ocr-grid thead th{position:sticky;top:0;background:var(--sunk,#e8ecf0);z-index:2;padding:2px 4px;font-weight:600}
+.ocr-grid thead th small{display:block;font-weight:400;color:var(--muted,#5b6977)}
+.ocr-grid thead th.we{color:#b4233a}
+.ocr-grid .stk{position:sticky;left:0;background:var(--surface,#fff);z-index:1}
+.ocr-grid thead .stk{z-index:3;background:var(--sunk,#e8ecf0)}
+.ocr-grid input{border:0;background:transparent;color:inherit;font:inherit;text-align:center;width:2.9em;min-height:30px;padding:0 2px}
+.ocr-grid input.nm{width:11em;text-align:left;padding-left:6px}
+.ocr-grid input.id{width:5.5em}
+.ocr-grid input.ph{width:7.5em}
+.ocr-grid input.pl{width:9em;text-align:left}
+.ocr-grid td.mt{font-size:13px;padding:0 4px;cursor:help}
+.ocr-grid td.fz{background:rgba(15,92,122,.10)}
+.ocr-grid td.m{background:rgba(15,92,122,.13)}
+.ocr-grid td.n{background:rgba(92,60,150,.16)}
+.ocr-grid td.q{background:#ffe58a!important;color:#111;outline:2px solid #e0a400;outline-offset:-2px}
+.ocr-grid td.bad{outline:2px solid #d9480f;outline-offset:-2px}
+.ocr-grid td.diff{box-shadow:inset 0 0 0 2px #d9480f}
+.ocr-grid td.cnt{font-size:12px;color:var(--muted,#5b6977);padding:0 6px}
+.ocr-grid button.x{min-height:28px;padding:0 8px;border:0;background:transparent;color:var(--muted,#5b6977)}
+.ocr-legend{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--muted,#5b6977);margin:6px 0}
+.ocr-legend span::before{content:"";display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:4px;vertical-align:-2px;background:var(--c)}
+`;
+  function ensureCss() { if (typeof document === 'undefined' || document.getElementById('ocr-css')) return; const s = document.createElement('style'); s.id = 'ocr-css'; s.textContent = CSS; document.head.appendChild(s); }
+
+  // opts: {monthId, onChange, diffs: Set('person:day')}
+  function mountGrid(host, result, opts = {}) {
+    ensureCss();
+    const draw = () => {
+      const monthId = opts.monthId || result.month; const nd = daysIn(monthId);
+      const m = /^(\d{4})-(\d{2})$/.exec(monthId || '');
+      const q = new Set(result.uncertain.map(u => u.person + ':' + u.day));
+      const outs = result.people.map((p, i) => [p, i]).filter(([p]) => p.out);
+      const why = {}; result.uncertain.forEach(u => { why[u.person + ':' + u.day] = u.reason || 'AI ไม่แน่ใจ'; });
+      // รหัสที่พบแค่ครั้งเดียวทั้งตาราง (เช่น I แทน 1, O แทน 0) มักเป็นการอ่านผิด
+      const freq = {}; let total = 0; result.people.filter(p => !p.out).forEach(p => p.codes.slice(0, nd).forEach(c => { if (c) { freq[c] = (freq[c] || 0) + 1; total++; } }));
+      const odd = c => c && (!/^[A-Z0-9]{1,4}$/.test(c) || (total >= 30 && freq[c] === 1));
+      const hasM = result.people.some(p => p.match !== undefined);
+      const mCell = p => { if (!hasM) return ''; const t = p.match;
+        if (!t) return `<td class="mt" title="ไม่พบในรายชื่อเดิม — จะเพิ่มเป็นพนักงานใหม่">🆕</td>`;
+        const tip = t.how === 'fuzzy' ? `AI อ่านว่า “${t.aiName}” → ใช้ชื่อในระบบ (คล้าย ${t.score}%)` : t.how === 'eid' ? 'ตรงกับเลขประจำตัวในระบบ' : 'ตรงกับชื่อในระบบ';
+        return `<td class="mt ${t.how === 'fuzzy' ? 'fz' : ''}" title="${esc(tip + (t.note ? ' · ' + t.note : ''))}">${t.how === 'fuzzy' ? '≈' : '✓'}</td>`; };
+      let h = `<div class="ocr-legend"><span style="--c:#ffe58a">AI ไม่แน่ใจ — ตรวจกับรูป</span><span style="--c:rgba(15,92,122,.35)">กะเช้า</span><span style="--c:rgba(92,60,150,.4)">กะดึก</span><span style="--c:#d9480f">รหัสแปลก/พบครั้งเดียว</span></div>
+<div class="ocr-wrap"><table class="ocr-grid"><thead><tr><th class="stk">ชื่อ</th>${hasM ? '<th title="เทียบกับรายชื่อพนักงานเดิม">เดิม</th>' : ''}<th>เลขประจำตัว</th><th>เบอร์โทร</th><th>จุดรับ</th>`;
+      for (let d = 1; d <= nd; d++) { const wd = m ? new Date(+m[1], +m[2] - 1, d).getDay() : -1; h += `<th class="${wd === 0 || wd === 6 ? 'we' : ''}">${d}${wd >= 0 ? `<small>${TH_DS[wd]}</small>` : ''}</th>`; }
+      h += `<th>☀/☾</th><th></th></tr></thead><tbody>`;
+      result.people.forEach((p, i) => {
+        if (p.out) return;
+        let cm = 0, cn = 0;
+        h += `<tr><td class="stk ${q.has(i + ':0') ? 'q' : ''}" title="${esc(why[i + ':0'] || '')}"><input class="nm" data-i="${i}" data-f="name" value="${esc(p.name)}" aria-label="ชื่อ แถว ${i + 1}"></td>${mCell(p)}
+<td class="${q.has(i + ':0') ? 'q' : ''}"><input class="id" data-i="${i}" data-f="eid" value="${esc(p.eid)}" inputmode="numeric" aria-label="เลขประจำตัว แถว ${i + 1}"></td>
+<td><input class="ph" data-i="${i}" data-f="phone" value="${esc(p.phone)}" inputmode="tel" aria-label="เบอร์โทร แถว ${i + 1}"></td>
+<td><input class="pl" data-i="${i}" data-f="place" value="${esc(p.place)}" aria-label="จุดรับ แถว ${i + 1}"></td>`;
+        for (let d = 1; d <= nd; d++) {
+          const c = p.codes[d - 1] || ''; const s = shiftOf(c); if (s === 'm') cm++; if (s === 'n') cn++;
+          const k = i + ':' + d;
+          const cls = [s, q.has(k) ? 'q' : '', odd(c) ? 'bad' : '', opts.diffs && opts.diffs.has(k) ? 'diff' : ''].filter(Boolean).join(' ');
+          const tip = [why[k], odd(c) && 'รหัสนี้พบครั้งเดียวในตาราง — ตรวจกับรูป', opts.diffTips && opts.diffTips[k]].filter(Boolean).join(' · ');
+          h += `<td class="${cls}" title="${esc(tip)}"><input data-i="${i}" data-d="${d}" value="${esc(c)}" aria-label="${esc(p.name)} วันที่ ${d}"></td>`;
+        }
+        h += `<td class="cnt">${cm}/${cn}</td><td><button class="x" data-del="${i}" title="ลบแถวนี้" aria-label="ลบแถว ${esc(p.name)}">✕</button></td></tr>`;
+      });
+      h += `</tbody></table></div><div style="margin-top:6px"><button type="button" data-add="1">+ เพิ่มแถว</button></div>`;
+      if (result.missingKnown && result.missingKnown.length) h += `<p style="margin:8px 0 0;font-size:13px;color:#b4233a">⚠ คนในรายชื่อเดิมที่ไม่พบในรูป ${result.missingKnown.length} คน: ${result.missingKnown.map(esc).join(', ')} — ตรวจกับรูปว่าไม่มีจริงหรือ AI อ่านพลาด (กด + เพิ่มแถวได้)</p>`;
+      if (outs.length) h += `<details style="margin-top:8px;font-size:13px"><summary>ไม่อยู่ในรายชื่อเดิม ${outs.length} คน — ไม่นำเข้า (เช่น คนของรถคันอื่น)</summary><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${outs.map(([p, i]) => `<button type="button" data-keep="${i}" title="นำคนนี้เข้าด้วย (เช่น พนักงานใหม่ของสายนี้)" style="min-height:32px">+ ${esc(p.name || p.eid || '?')}${p.eid && p.name ? ` (${esc(p.eid)})` : ''}</button>`).join('')}</div></details>`;
+      host.innerHTML = h;
+    };
+    const clearQ = (i, d) => { result.uncertain = result.uncertain.filter(u => !(u.person === i && u.day === d)); };
+    host.oninput = e => {
+      const t = e.target; if (t.tagName !== 'INPUT') return; const i = +t.dataset.i; const p = result.people[i]; if (!p) return;
+      if (t.dataset.d) {
+        const d = +t.dataset.d; const v = normCode(t.value); p.codes[d - 1] = v; clearQ(i, d);
+        const td = t.parentElement; const s = shiftOf(v);
+        td.className = [s, v && !/^[A-Z0-9]{1,4}$/.test(v) ? 'bad' : ''].filter(Boolean).join(' ');
+        let cm = 0, cn = 0; p.codes.forEach(c => { const x = shiftOf(c); if (x === 'm') cm++; if (x === 'n') cn++; });
+        const cnt = td.parentElement.querySelector('.cnt'); if (cnt) cnt.textContent = `${cm}/${cn}`;
+      } else { const f = t.dataset.f; p[f] = f === 'eid' ? t.value.replace(/\D/g, '') : t.value.trim(); if (f === 'name' || f === 'eid') { clearQ(i, 0); t.parentElement.classList.remove('q'); } }
+      opts.onChange && opts.onChange(result);
+    };
+    host.onclick = e => {
+      const del = e.target.closest('[data-del]'), add = e.target.closest('[data-add]'), keep = e.target.closest('[data-keep]');
+      if (keep) { const p = result.people[+keep.dataset.keep]; p.keep = true; p.out = false; draw(); opts.onChange && opts.onChange(result); return; }
+      if (del) {
+        const i = +del.dataset.del; result.people.splice(i, 1);
+        result.uncertain = result.uncertain.filter(u => u.person !== i).map(u => (u.person > i ? { ...u, person: u.person - 1 } : u));
+        draw(); opts.onChange && opts.onChange(result);
+      }
+      if (add) { result.people.push({ eid: '', name: '', team: '', phone: '', place: '', codes: Array(MAX_DAYS).fill('') }); draw(); const ins = host.querySelectorAll('input.nm'); ins[ins.length - 1].focus(); }
+    };
+    host.addEventListener('keydown', e => {   // Enter = ลงช่องถัดไปด้านล่าง
+      if (e.key !== 'Enter' || e.target.tagName !== 'INPUT') return; e.preventDefault();
+      const t = e.target; const sel = t.dataset.d ? `input[data-i="${+t.dataset.i + 1}"][data-d="${t.dataset.d}"]` : `input[data-i="${+t.dataset.i + 1}"][data-f="${t.dataset.f}"]`;
+      const nx = host.querySelector(sel); nx && nx.focus();
+    });
+    draw();
+    return { redraw: draw };
+  }
+
+  // ---------- ดึงข้อมูลพนักงานเดิม (ชื่อ เลขประจำตัว เบอร์ จุดรับ) ----------
+  function lev(a, b) {   // ระยะแก้ไขระหว่างสตริง (นับทีละตัวอักษร)
+    a = [...a]; b = [...b]; let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+    for (let i = 1; i <= a.length; i++) { const cur = [i]; for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = cur; }
+    return prev[b.length];
+  }
+  function sim(a, b) { a = normName(a); b = normName(b); if (!a || !b) return 0; if (a === b) return 1; return 1 - lev(a, b) / Math.max([...a].length, [...b].length); }
+
+  // จับคู่คนในรูปกับรายชื่อเดิม: เลขประจำตัว → ชื่อตรง → ชื่อใกล้เคียง (≥ 75%)
+  // ตรงแล้ว: ใช้ชื่อสะกดตามระบบ + เติมเลข/ทีม/เบอร์/จุดรับที่ AI ไม่ได้อ่าน · p.match = null = คนใหม่
+  // opts.onlyKnown: ตัดคนที่ไม่อยู่ในรายชื่อเดิมออก (p.out) เช่น คนของรถคันอื่นในตารางเดียวกัน
+  function matchEmployees(result, emps, opts = {}) {
+    const list = (emps || []).filter(e => e && str(e.name)); const used = new Set();
+    const fill = (p, e, how, score, note) => {
+      used.add(e); const ai = p.name;
+      p.match = { how, score: Math.round(score * 100), aiName: ai !== e.name ? ai : '', note: note || '' };
+      p.name = e.name; if (e.eid) p.eid = str(e.eid);
+      for (const k of ['team', 'phone', 'place']) if (!str(p[k]) && str(e[k])) p[k] = str(e[k]);
+    };
+    result.people.forEach(p => { p.match = null; });
+    if (!list.length) { result.people.forEach(p => { delete p.match; p.out = false; }); result.missingKnown = []; return result; }
+    result.people.forEach((p, i) => {   // 1) เลขประจำตัว
+      if (!p.eid) return; const e = list.find(x => !used.has(x) && str(x.eid) === p.eid); if (!e) return;
+      const s = sim(p.name, e.name);
+      const noName = !str(p.name);
+      if (noName || s >= 0.5) { fill(p, e, 'eid', s); if (noName) p.match.note = 'AI อ่านชื่อไม่ได้ ใช้ชื่อตามเลขประจำตัวในระบบ'; result.uncertain = result.uncertain.filter(u => !(u.person === i && u.day === 0 && /อ่านชื่อไม่ได้/.test(u.reason))); }
+      else result.uncertain.push({ person: i, day: 0, reason: `เลข ${p.eid} ในระบบคือ “${e.name}” แต่ AI อ่านชื่อว่า “${p.name}”` });
+    });
+    result.people.forEach(p => {   // 2) ชื่อตรง
+      if (p.match) return; const e = list.find(x => !used.has(x) && normName(x.name) === normName(p.name)); if (!e) return;
+      fill(p, e, 'name', 1, p.eid && e.eid && p.eid !== str(e.eid) ? `AI อ่านเลขเป็น ${p.eid} ใช้เลขในระบบ ${e.eid}` : '');
+    });
+    result.people.forEach(p => {   // 3) ชื่อใกล้เคียง (สะกดผิดเล็กน้อย)
+      if (p.match) return;
+      const sc = list.filter(x => !used.has(x)).map(x => [x, sim(p.name, x.name)]).sort((a, b) => b[1] - a[1]);
+      if (sc[0] && sc[0][1] >= 0.75 && (!sc[1] || sc[0][1] - sc[1][1] >= 0.05)) fill(p, sc[0][0], 'fuzzy', sc[0][1]);
+    });
+    result.missingKnown = list.filter(x => !used.has(x)).map(x => x.name);
+    setOnlyKnown(result, !!opts.onlyKnown);
+    return result;
+  }
+  function setOnlyKnown(result, on) { result.onlyKnown = on; result.people.forEach(p => { p.out = !!(on && p.match === null && !p.keep); }); return result; }
+  const known = emps => (emps || []).filter(e => e && str(e.name)).map(e => ({ eid: str(e.eid), name: str(e.name) }));
+
+  // รายชื่อจากไฟล์ "📦 ส่งออกข้อมูลทั้งหมด" (.json) ของแอป
+  function empsFromBackup(j) {
+    const a = Array.isArray(j) ? j : j && Array.isArray(j.employees) ? j.employees : null; if (!a) return null;
+    return a.map(e => ({ eid: str(e.eid), name: str(e.name), team: str(e.team), phone: str(e.phone), place: str(e.place) })).filter(e => e.name);
+  }
+  // รายชื่อจาก Excel ที่มีแถวหัว ชื่อ / เลขประจำตัว / ทีม / เบอร์ / จุดรับ (เช่น ไฟล์ตารางกะเดิม)
+  function empsFromRows(rows) {
+    const hi = rows.findIndex(r => r && r.some(v => typeof v === 'string' && /เลขประจำตัว|รหัสพนักงาน/.test(v)) && r.some(v => typeof v === 'string' && /ชื่อ/.test(v)));
+    if (hi < 0) return null;
+    const H = rows[hi].map(str); const col = re => H.findIndex(v => re.test(v));
+    const cId = col(/เลขประจำตัว|รหัสพนักงาน/), cName = col(/ชื่อ/), cTeam = col(/ทีม|กะ/), cPhone = col(/เบอร์|โทร/), cPlace = col(/สถานที่|จุดรับ|ที่อยู่/);
+    const out = [], seen = new Set();
+    for (const r of rows.slice(hi + 1)) {
+      const name = str(r[cName]); const eid = cId >= 0 ? str(r[cId]) : '';
+      if (!name || /^(รวม|หมายเหตุ|ลงชื่อ|ลายเซ็น|ผู้)/.test(name) || (cId >= 0 && !/^\d{3,}$/.test(eid))) continue;
+      const k = eid || normName(name); if (seen.has(k)) continue; seen.add(k);
+      out.push({ eid, name, team: cTeam >= 0 ? str(r[cTeam]) : '', phone: cPhone >= 0 ? str(r[cPhone]) : '', place: cPlace >= 0 ? str(r[cPlace]) : '' });
+    }
+    return out.length ? out : null;
+  }
+
+  // ---------- เทียบกับตารางจริง (Excel) ----------
+  const normName = s => str(s).replace(/^(นาย|นางสาว|นาง|น\.ส\.|ด\.ช\.|ด\.ญ\.|mr\.?|mrs\.?|ms\.?|miss)\s*/i, '').replace(/\s+/g, '').toLowerCase();
+
+  // อ่านตารางกะจากแถว Excel (header:1) → [{eid,name,codes[31]}] · หลักเดียวกับ parseShiftTable ของแอป
+  function truthFromRows(rows) {
+    const hi = rows.findIndex(r => r && r.some(v => typeof v === 'string' && /เลขประจำตัว|รหัสพนักงาน/.test(v)));
+    if (hi < 0) return null;
+    const H = rows[hi].map(str); const col = re => H.findIndex(v => re.test(v));
+    const cId = col(/เลขประจำตัว|รหัสพนักงาน/), cName = col(/ชื่อ/);
+    let dayCols = {};
+    for (const r of [rows[hi + 1] || [], rows[hi]]) {
+      const m = {}; r.forEach((v, c) => { const n = typeof v === 'number' ? v : /^\d{1,2}$/.test(str(v)) ? +str(v) : null; if (n >= 1 && n <= 31 && c !== cId) m[c] = n; });
+      if (Object.keys(m).length >= 28) { dayCols = m; break; }
+    }
+    if (!Object.keys(dayCols).length || cName < 0) return null;
+    const out = [];
+    for (const r of rows.slice(hi + 1)) {
+      const id = cId >= 0 ? str(r[cId]) : ''; const name = str(r[cName]);
+      if (!name || (cId >= 0 && !/^\d{4,}$/.test(id))) continue;
+      const codes = Array(MAX_DAYS).fill('');
+      for (const [c, n] of Object.entries(dayCols)) codes[n - 1] = normCode(r[c]);
+      out.push({ eid: id, name, codes });
+    }
+    return out;
+  }
+
+  function compare(result, truth, monthId) {
+    const nd = daysIn(monthId || result.month);
+    const used = new Set(); const pairs = []; const extra = [];
+    result.people.forEach((p, i) => {
+      if (p.out) return;
+      let j = p.eid ? truth.findIndex((t, k) => !used.has(k) && t.eid === p.eid) : -1;
+      if (j < 0) j = truth.findIndex((t, k) => !used.has(k) && normName(t.name) === normName(p.name));
+      if (j < 0) { extra.push(p.name); return; }
+      used.add(j); pairs.push([i, j]);
+    });
+    const missing = truth.filter((_, k) => !used.has(k)).map(t => t.name);
+    let cells = 0, ok = 0, shiftOk = 0, nameOk = 0, idOk = 0; const diffs = [];
+    for (const [i, j] of pairs) {
+      const p = result.people[i], t = truth[j];
+      if (normName(p.name) === normName(t.name)) nameOk++;
+      if (p.eid === t.eid) idOk++;
+      for (let d = 1; d <= nd; d++) {
+        const a = p.codes[d - 1] || '', b = t.codes[d - 1] || '';
+        if (!a && !b) continue;
+        cells++;
+        if (a === b) ok++; else diffs.push({ person: i, name: p.name, day: d, got: a, want: b });
+        if (shiftOf(a) === shiftOf(b) && (/OT$/.test(a) === /OT$/.test(b))) shiftOk++;
+      }
+    }
+    const pct = (a, b) => (b ? Math.round(1000 * a / b) / 10 : 100);
+    return {
+      truthPeople: truth.length, foundPeople: result.people.length, matched: pairs.length, missing, extra,
+      cells, cellsOk: ok, cellPct: pct(ok, cells), shiftPct: pct(shiftOk, cells),
+      namePct: pct(nameOk, pairs.length), idPct: pct(idOk, pairs.length), diffs
+    };
+  }
+
+  g.OCR = { MAX_DAYS, MORNING, NIGHT, prepImage, toRows, stats, mountGrid, truthFromRows, compare, normName, normCode, shiftOf, daysIn, esc, CSS,
+    matchEmployees, setOnlyKnown, known, empsFromBackup, empsFromRows, sim, prepFile, isPdf, rotateImage, splitImage, mountThumbs, loadPdfJs };
+})(typeof globalThis !== 'undefined' ? globalThis : window);
+
+/* ---------- 📷 นำเข้าตารางกะจากรูป (AI · ทดลอง) ---------- */
+// ทำงานในแอป TanKa (ต่อจาก ocr_client.js) · เรียก Edge Function "shift-ocr" — ไม่มีคีย์ AI ในแอป
+(function(){const st=document.createElement('style');st.textContent='body.ro #btnPhoto,body.ro #m-photo{display:none!important}.sheet.wide{width:min(1180px,100%)}';document.head.appendChild(st)})();
+async function ocrErr(error){try{const j=await error.context.json();return j.error||error.message}catch{return error.message||String(error)}}
+function ocrOpen(){
+  if(typeof CTX!=='undefined'&&CTX.access!=='edit'){toast('บัญชีนี้ดูได้อย่างเดียว');return}
+  const m0=S.month||curMonthId();let imgs=[];
+  openSheet(`<h3>📷 นำเข้าตารางกะจากรูป <small class="hint">(ทดลอง)</small></h3>
+   <p class="hint">รูปถ่ายหรือไฟล์ PDF · ถ่ายให้เห็นทั้งตาราง ตรง ๆ แสงพอ · รวมไม่เกิน 4 หน้า/รูป · ตารางกลับด้านกด ⟲ ⟳ ให้ตั้งตรงก่อน · AI อาจอ่านผิด ต้องตรวจก่อนบันทึกทุกครั้ง</p>
+   <div class="field"><label for="o-pics">รูปหรือ PDF ตารางกะ</label><input type="file" id="o-pics" accept="image/*,application/pdf,.pdf" multiple></div>
+   <div id="o-th" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+   <div class="field"><label for="o-month">เดือนของตาราง</label><input type="month" id="o-month" value="${m0}"></div>
+   ${S.emps&&S.emps.length?`<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="o-only" checked style="min-height:auto"> เอาเฉพาะพนักงานในรายชื่อของสายนี้ (${S.emps.length} คน) — ตัดคนรถคันอื่นออก</label>`:''}
+   <p class="hint" id="o-st" role="status"></p>
+   <div class="foot"><span></span><div><button class="ghost" data-act="close">ยกเลิก</button><button class="primary" id="o-go" disabled>ให้ AI อ่าน</button></div></div>`,sh=>{
+    const go=sh.querySelector('#o-go'),stt=sh.querySelector('#o-st');
+    sh.querySelector('#o-pics').onchange=async e=>{const fs=[...e.target.files];imgs=[];go.disabled=true;stt.textContent=fs.length>0?'กำลังเตรียมไฟล์…':'';let cut=false;
+      for(const f of fs){if(imgs.length>=4){cut=true;break}
+        try{const got=await OCR.prepFile(f,2000,0.85,4-imgs.length);if(got[0]&&got[0].pages>got.length)cut=true;imgs.push(...got)}catch(x){toast('เปิดไฟล์ไม่ได้: '+f.name)}}
+      OCR.mountThumbs(sh.querySelector('#o-th'),imgs,{height:72});
+      stt.textContent=cut?'ใช้ได้รวม 4 หน้า/รูปแรก':'';go.disabled=!imgs.length};
+    go.onclick=async()=>{
+      if(!navigator.onLine){toast('ต้องต่ออินเทอร์เน็ตก่อน');return}
+      const month=sh.querySelector('#o-month').value;const only=!!sh.querySelector('#o-only')?.checked;go.disabled=true;const t0=Date.now();
+      const tk=setInterval(()=>stt.textContent=`⏳ AI กำลังอ่านตาราง… ${Math.round((Date.now()-t0)/1000)} วินาที (ปกติ 20–60 วิ)`,500);
+      try{const {data,error}=await sb.functions.invoke('shift-ocr',{body:{van_id:CTX.vanId,month_hint:month?`ตารางนี้เป็นของเดือน ${month}`:'',known:OCR.known(S.emps),only_known:only,images:imgs.map(i=>({data:i.data,media_type:i.media_type}))}});
+        if(error)throw new Error(await ocrErr(error));if(!data||!data.ok)throw new Error(data?.error||'อ่านไม่สำเร็จ');
+        const r=data.result;if(month)r.month=month;if(S.emps&&S.emps.length)OCR.matchEmployees(r,S.emps,{onlyKnown:only});ocrReview(r,imgs,data.left_today);
+      }catch(e){stt.textContent='';toast('ไม่สำเร็จ: '+e.message);go.disabled=false}finally{clearInterval(tk)}};
+  });
+}
+function ocrReview(res,imgs,left){
+  openSheet(`<h3>ตรวจตารางที่ AI อ่าน</h3>
+   <div class="hint" id="o-sum"></div>
+   <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">${imgs.map((i,k)=>`<a href="${i.dataUrl}" target="_blank" rel="noopener" title="เปิดรูปที่ ${k+1}"><img src="${i.dataUrl}" alt="รูปที่ ${k+1}" style="height:56px;border-radius:6px;border:1px solid var(--line)"></a>`).join('')}
+    <label class="hint" style="display:flex;gap:6px;align-items:center">เดือน <input type="month" id="o-month" value="${esc(res.month||'')}" style="min-height:36px"></label></div>
+   ${res.notes?`<p class="hint">AI: ${esc(res.notes)}</p>`:''}
+   <div id="o-grid"></div>
+   <div class="foot"><span class="hint">${left!=null?`เหลือ ${left} ครั้งวันนี้`:''}</span><div><button class="ghost" data-act="close">ยกเลิก</button><button class="primary" id="o-use">ใช้ตารางนี้</button></div></div>`,sh=>{
+    sh.classList.add('wide');
+    const sum=()=>{const s=OCR.stats(res,sh.querySelector('#o-month').value);
+      sh.querySelector('#o-sum').innerHTML=`${s.people} คน${S.emps&&S.emps.length?` (ตรงกับรายชื่อเดิม ${s.matched}${s.fresh?` · <span class="danger">🆕 คนใหม่ ${s.fresh}</span>`:''}${s.out?` · ตัดคนนอกรายชื่อ ${s.out}`:''}${s.missing?` · <span class="danger">ไม่พบในรูป ${s.missing}</span>`:''})`:''} · ☀ ${s.morning} · ☾ ${s.night} · OT ${s.ot}${s.uncertain?` · <span class="danger">ช่องสีเหลือง ${s.uncertain} ช่อง AI ไม่แน่ใจ — เทียบกับรูปแล้วแก้/ยืนยัน</span>`:' · ✓ AI มั่นใจทุกช่อง (ยังควรตรวจ)'}${s.odd?` · <span class="danger">รหัสแปลก ${s.odd} แบบ (กรอบส้ม)</span>`:''}`};
+    const grid=OCR.mountGrid(sh.querySelector('#o-grid'),res,{monthId:res.month,onChange:sum});
+    sh.querySelector('#o-month').onchange=e=>{res.month=e.target.value;grid.redraw();sum()};sum();
+    sh.querySelector('#o-use').onclick=ev=>{const month=sh.querySelector('#o-month').value;
+      if(!/^\d{4}-\d{2}$/.test(month)){toast('เลือกเดือนก่อน');return}
+      res.people=res.people.filter(p=>p.name.trim());if(!res.people.some(p=>!p.out)){toast('ไม่มีรายชื่อในตาราง');return}
+      const b=ev.currentTarget;const nq=OCR.stats(res,month).uncertain;if(nq&&!b.classList.contains('armed')){b.classList.add('armed');b.textContent=`ยังมี ${nq} ช่องไม่แน่ใจ — กดอีกครั้งเพื่อใช้เลย`;return}
+      const p=parseShiftTable(OCR.toRows(res,month),'📷 รูปถ่าย',month);
+      if(!p){toast('แปลงตารางไม่สำเร็จ');return}
+      closeSheet();S.pending=p;S.tab='day';render();window.scrollTo({top:0});toast('ตรวจเดือนแล้วกดบันทึกด้านบน')};
+  });
 }
 
 function startApp(adapter){
