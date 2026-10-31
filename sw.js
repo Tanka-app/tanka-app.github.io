@@ -1,11 +1,12 @@
 // TanKa — เก็บตัวแอปไว้ในเครื่อง ให้เปิดได้ตอนไม่มีเน็ต
 // ตัวแอป (index.html): ลองเน็ตก่อน (ได้เวอร์ชันใหม่เสมอ) ถ้าไม่มีเน็ตใช้ตัวที่เก็บไว้
 // ไลบรารีจาก CDN (ล็อกเวอร์ชันแล้ว): ใช้ตัวที่เก็บไว้ก่อน · ข้อมูล Supabase: ไม่ผ่านตัวนี้ (แอปจัดการเอง)
-const V = 'tanka-v1';
+const V = 'tanka-v2';
 const CDN = [
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js',
   'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js',
 ];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(V).then(c => Promise.all(['./', ...CDN].map(u => c.add(u).catch(() => null)))).then(() => self.skipWaiting()));

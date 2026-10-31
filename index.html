@@ -794,7 +794,7 @@ async function onFile(file){
     S.pending=p;S.tab='day';render();window.scrollTo({top:0});
   }catch(e){toast('อ่านไฟล์ไม่ได้: '+e.message)}
 }
-function buildWorkbook(){
+function buildWorkbookPlain(){
   const wb=XLSX.utils.book_new();const lbl=monthLabel(S.month);const keys=Object.keys(S.days).sort();
   const mark=r=>r.name+(r.ot?'   ★OT':'')+(r.status==='ride'?'  ✓ขึ้น':r.status==='no'?'  ✗ไม่ขึ้น':'');
   const block=k=>{const d=S.days[k];const dt=dateOf(k);const out=[[`${TH_D[dt.getDay()]}  ${+k} ${lbl}`,null,null,null,null]];let hdr=false;
@@ -817,10 +817,101 @@ function buildWorkbook(){
   XLSX.utils.book_append_sheet(wb,ws3,'สรุป OT');
   return wb;
 }
+/* ---------- ส่งออก Excel แบบจัดรูปแบบ (เหมือนตารางคนขับ A4 แนวนอน 4 วัน/หน้า) ---------- */
+const EXCELJS_URL='https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js';
+function loadExcelJS(){
+  if(window.ExcelJS)return Promise.resolve(true);
+  return new Promise(res=>{const sc=document.createElement('script');sc.src=EXCELJS_URL;sc.onload=()=>res(!!window.ExcelJS);sc.onerror=()=>res(false);document.head.appendChild(sc)});
+}
+async function buildStyledXlsx(){
+  const XC={navy:'FF1F4E79',red:'FF9C0006',cream:'FFFFE699',grey:'FFD9D9D9',line:'FF808080',zebra:'FFF7F9FB',white:'FFFFFFFF',black:'FF000000'};
+  const F=(size,bold,color)=>({name:'Tahoma',size,bold:!!bold,color:{argb:color||XC.black}});
+  const fill=c=>({type:'pattern',pattern:'solid',fgColor:{argb:c}});
+  const sd={style:'thin',color:{argb:XC.line}};const BOX={top:sd,left:sd,bottom:sd,right:sd};
+  const AL=(h,wrap)=>({horizontal:h,vertical:'middle',wrapText:!!wrap});
+  const [y,m]=S.month.split('-').map(Number);const lbl=monthLabel(S.month);
+  const nd=new Date(y,m,0).getDate();
+  const DK=d=>Object.keys(S.days).find(k=>+k===d);
+  const get=(d,s)=>{const k=DK(d);return k?(S.days[k][s]||[]):[]};
+  let need=14;for(let d=1;d<=nd;d++)need=Math.max(need,get(d,'morning').length+get(d,'night').length);
+  const ROWS=need,BAND=ROWS+4,scale=ROWS<=14?70:Math.max(45,Math.floor(70*18/BAND));
+  const wb=new ExcelJS.Workbook();wb.creator='TanKa';wb.created=new Date();
+  const ps={paperSize:9,orientation:'landscape',fitToPage:false,scale,horizontalCentered:true,
+    margins:{left:0.2,right:0.2,top:0.25,bottom:0.25,header:0.1,footer:0.1}};
+
+  /* ชีต 1: รายวัน 4 วัน/หน้า */
+  const ws=wb.addWorksheet('รายวัน 4วันต่อหน้า',{pageSetup:{...ps,printTitlesRow:'1:1'}});
+  [6,28,11,15,33,2,6,28,11,15,33].forEach((w,i)=>ws.getColumn(i+1).width=w);
+  const c1=ws.getCell(1,1);c1.value=`ตารางรับ-ส่งพนักงาน ${lbl}   (ลำดับรับ: ใกล้ → ไกล)`;c1.font=F(16,1);ws.getRow(1).height=24;
+  const HD=['รับคนที่','ชื่อ-สกุล','ทีม/กะ','เบอร์โทร','จุดรับ-ส่ง'];
+  const block=(r0,c0,d)=>{
+    const dt=new Date(y,m-1,d);const we=dt.getDay()===0||dt.getDay()===6;
+    for(let c=c0;c<c0+5;c++)ws.getCell(r0,c).fill=fill(we?XC.red:XC.navy);
+    const h=ws.getCell(r0,c0);h.value=`${TH_D[dt.getDay()]}  ${d} ${lbl}`;h.font=F(15,1,XC.white);h.alignment=AL('left');ws.getRow(r0).height=24;
+    const M=get(d,'morning'),N=get(d,'night');const extra=ROWS-M.length-N.length;const nb=Math.floor(extra/2);
+    const caps={morning:M.length+(extra-nb),night:N.length+nb};
+    let r=r0+1,hdr=false;
+    for(const s of ['morning','night']){const L=s==='morning'?M:N;
+      const t=ws.getCell(r,c0);t.value=`${SH[s].label}  ${SH[s].xl}   (${L.length} คน)`;t.font=F(13,1);t.alignment=AL('left');
+      for(let c=c0;c<c0+5;c++)ws.getCell(r,c).fill=fill(XC.cream);ws.getRow(r).height=21;r++;
+      if(!hdr){HD.forEach((v,i)=>{const x=ws.getCell(r,c0+i);x.value=v;x.font=F(12,1);x.fill=fill(XC.grey);x.alignment=AL('center');x.border=BOX});ws.getRow(r).height=19;r++;hdr=true}
+      L.forEach((p,i)=>{
+        const st=p.status==='ride'?'  ✓ขึ้น':p.status==='no'?'  ✗ไม่ขึ้น':'';
+        const vals=[i+1,p.name+(p.ot?'   ★OT':'')+st,p.team||'',p.phone||'',p.place||''];
+        vals.forEach((v,j)=>{const x=ws.getCell(r,c0+j);x.value=v;x.border=BOX;
+          x.font=F(j===2?11:j===4?12:13,0,(j===1&&p.ot)?XC.red:XC.black);x.alignment=AL([0,2,3].includes(j)?'center':'left')});
+        ws.getRow(r).height=21;r++});
+      for(let k=L.length;k<caps[s];k++){for(let j=0;j<5;j++)ws.getCell(r,c0+j).border=BOX;ws.getRow(r).height=21;r++}
+    }
+  };
+  let r=2;
+  for(let start=1;start<=nd;start+=4){
+    const pg=[];for(let d=start;d<Math.min(start+4,nd+1);d++)pg.push(d);
+    for(let b=0;b<pg.length;b+=2){pg.slice(b,b+2).forEach((d,ci)=>block(r,1+ci*6,d));r+=BAND}
+    if(start+4<=nd)ws.getRow(r-1).addPageBreak();
+  }
+
+  /* ชีต 2: รายการทั้งหมด (กรอง/เรียงได้) */
+  const w2=wb.addWorksheet('รายการ',{views:[{state:'frozen',ySplit:1}],pageSetup:{...ps,fitToPage:true,fitToWidth:1,fitToHeight:0,scale:100,printTitlesRow:'1:1'}});
+  const H2=['วันที่','วัน','กะ','ลำดับ','ชื่อ-สกุล','ทีม/กะ','เบอร์โทร','จุดรับ-ส่ง','OT','สถานะ','กลับ','หมายเหตุ'];
+  [7,11,9,7,30,13,14,30,6,9,6,24].forEach((w,i)=>w2.getColumn(i+1).width=w);
+  const head=(sh,H)=>{H.forEach((v,i)=>{const x=sh.getCell(1,i+1);x.value=v;x.font=F(12,1,XC.white);x.fill=fill(XC.navy);x.alignment=AL('center');x.border=BOX});sh.getRow(1).height=22};
+  head(w2,H2);
+  let rr=2,band=0,prev=null;
+  for(let d=1;d<=nd;d++)for(const s of ['morning','night'])get(d,s).forEach((p,i)=>{
+    const dt=new Date(y,m-1,d);const we=dt.getDay()===0||dt.getDay()===6;
+    if(prev!==d){band^=1;prev=d}
+    const v=[d,TH_D[dt.getDay()],SH[s].label,i+1,p.name,p.team||'',p.phone||'',p.place||'',p.ot?'OT':'',p.status==='ride'?'ขึ้น':p.status==='no'?'ไม่ขึ้น':'',p.back?'✓':'',p.note||''];
+    v.forEach((val,j)=>{const x=w2.getCell(rr,j+1);x.value=val;x.border=BOX;
+      x.font=F(12,j===8&&p.ot,(j<=1&&we)||(j===8&&p.ot)||(j===9&&p.status==='no')?XC.red:XC.black);
+      x.alignment=AL([4,7,11].includes(j)?'left':'center');
+      if(j===2)x.fill=fill(s==='morning'?'FFFCEFDC':'FFE8E9FB');else if(band)x.fill=fill(XC.zebra)});
+    w2.getRow(rr).height=20;rr++});
+  w2.autoFilter={from:{row:1,column:1},to:{row:Math.max(1,rr-1),column:H2.length}};
+
+  /* ชีต 3: สรุป OT */
+  const {per}=monthSummary();
+  const w3=wb.addWorksheet('สรุป OT',{views:[{state:'frozen',ySplit:1}],pageSetup:{...ps,orientation:'portrait',fitToPage:true,fitToWidth:1,fitToHeight:0,scale:100}});
+  const H3=['ชื่อ-สกุล','ทีม/กะ','กะเช้า','กะดึก','ขึ้น','ไม่ขึ้น','OT (ครั้ง)','วันที่ทำ OT'];
+  [30,13,9,9,8,9,11,36].forEach((w,i)=>w3.getColumn(i+1).width=w);
+  head(w3,H3);
+  const tot=[0,0,0,0,0];
+  per.forEach((p,i)=>{const v=[p.name,p.team||'',p.m,p.n,p.ride,p.no,p.ot,p.otDays.join(', ')];
+    [p.m,p.n,p.ride,p.no,p.ot].forEach((x,k)=>tot[k]+=+x||0);
+    v.forEach((val,j)=>{const x=w3.getCell(i+2,j+1);x.value=val;x.border=BOX;x.font=F(12,j===6&&p.ot>0,j===6&&p.ot>0?XC.red:XC.black);
+      x.alignment=AL(j===0||j===7?'left':'center',j===7);if(i%2)x.fill=fill(XC.zebra)});
+    w3.getRow(i+2).height=20});
+  const tr=per.length+2;
+  ['รวม','',...tot,''].forEach((val,j)=>{const x=w3.getCell(tr,j+1);x.value=val;x.font=F(12,1);x.fill=fill(XC.cream);x.border=BOX;x.alignment=AL(j===0?'left':'center')});
+  w3.getRow(tr).height=22;
+  return wb.xlsx.writeBuffer();
+}
 async function doExport(){
-  if(!window.XLSX){toast('โหลดตัวสร้าง Excel ไม่สำเร็จ');return}
   if(!dl){toast('หน้านี้ดาวน์โหลดไฟล์ไม่ได้ในมุมมองนี้');return}
-  const [y,m]=S.month.split('-');const data=XLSX.write(buildWorkbook(),{bookType:'xlsx',type:'array'});
+  const [y,m]=S.month.split('-');let data=null;
+  if(await loadExcelJS()){try{data=await buildStyledXlsx()}catch(e){console.warn('styled export',e)}}
+  if(!data){if(!window.XLSX){toast('โหลดตัวสร้าง Excel ไม่สำเร็จ');return}
+    data=XLSX.write(buildWorkbookPlain(),{bookType:'xlsx',type:'array'});toast('ออฟไลน์ — ส่งออกแบบไม่จัดรูปแบบ')}
   try{await dl.save({filename:`ตารางรับส่ง_${TH_M[+m-1]}${y}.xlsx`,data:new Uint8Array(data)});toast('ส่งออกแล้ว')}
   catch(e){if(e?.code!=='declined')toast('ส่งออกไม่สำเร็จ: '+(e?.message||e?.code))}
 }
