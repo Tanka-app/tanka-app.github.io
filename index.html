@@ -1449,9 +1449,10 @@ function reqCard(r,ctx,canDecide){
   return `<div class="g-req st-${r.status}"><div class="g-rh"><b>${esc(KIND_TH[r.kind]||r.kind)}</b>${line?` · ${esc(line.name)}`:''}<span class="g-st">${ST_TH[r.status]}</span></div>
     ${r.summary?`<div>${esc(r.summary)}</div>`:''}${reqDetail(r,ctx)}
     <div class="hint">ขอโดย ${esc(r.requested_label||'')} · ${fmtT(r.created_at)}${r.decided_at?` · ${ST_TH[r.status]}โดย ${esc(r.decided_label||'')} ${fmtT(r.decided_at)}`:''}${r.note?` · ${esc(r.note)}`:''}</div>
-    ${r.status==='pending'&&sup&&!ctx.super?'<div class="hint">⏳ การลบต้องรอผู้ดูแลระบบ TanKa อนุมัติ</div>':''}${r.status==='pending'?`<div class="g-row">${canDecide?`<button class="danger" data-rej="${r.id}">ไม่อนุมัติ</button><button class="primary" data-ok="${r.id}">อนุมัติ</button>`:''}${r.mine?`<button class="ghost" data-cancel="${r.id}">ยกเลิกคำขอ</button>`:''}</div>`:''}</div>`;
+    ${r.kind==='car_request'&&r.status==='approved'?`<div class="g-row"><button data-share="${r.id}">🔗 แชร์ให้รถเสริม</button></div>`:''}${r.status==='pending'&&sup&&!ctx.super?'<div class="hint">⏳ การลบต้องรอผู้ดูแลระบบ TanKa อนุมัติ</div>':''}${r.status==='pending'?`<div class="g-row">${canDecide?`<button class="danger" data-rej="${r.id}">ไม่อนุมัติ</button><button class="primary" data-ok="${r.id}">อนุมัติ</button>`:''}${r.mine?`<button class="ghost" data-cancel="${r.id}">ยกเลิกคำขอ</button>`:''}</div>`:''}</div>`;
 }
 function wireReq(root,after){
+  root.querySelectorAll('[data-share]').forEach(b=>b.onclick=()=>shareSheet(b.dataset.share));
   root.querySelectorAll('[data-ok]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await rpc('decide_change',{p_id:b.dataset.ok,p_approve:true});toast('อนุมัติแล้ว');after()}catch(e){toast(e.message);b.disabled=false}});
   root.querySelectorAll('[data-rej]').forEach(b=>b.onclick=async()=>{const note=prompt('เหตุผลที่ไม่อนุมัติ (ไม่ใส่ก็ได้)');if(note===null)return;b.disabled=true;
     try{await rpc('decide_change',{p_id:b.dataset.rej,p_approve:false,p_note:note||null});toast('ไม่อนุมัติแล้ว');after()}catch(e){toast(e.message);b.disabled=false}});
@@ -1663,11 +1664,110 @@ async function openLineLog(){
 }
 // ส่งขอรถเสริมจากหน้าใบขอรถ
 async function sendCarRequest(f){
-  const [y,m]=S.month.split('-');const pick=L=>L.map(r=>({name:r.name,team:r.team||'',place:r.place||'',phone:r.phone||''}));
+  const [y,m]=S.month.split('-');const pick=L=>L.map(r=>({eid:r.eid||(empOf(r)||{}).eid||'',name:r.name,team:r.team||'',place:r.place||'',phone:r.phone||''}));
   try{const r=await rpc('request_change',{p_van:CTX.vanId,p_kind:'car_request',p_payload:{day:`${y}-${m}-${pad(+f.day)}`,shift:f.shift,main:pick(f.main),extra:pick(f.extra),ot:pick(f.ot)},
       p_summary:`ขอรถเสริม ${+f.day}/${+m} ${f.shift==='night'?'รอบดึก':'รอบเช้า'} · ${f.extra.length} คน`});
     toast(r.status==='approved'?'บันทึกใบขอรถแล้ว (อนุมัติแล้ว)':'ส่งขออนุมัติรถเสริมแล้ว');loadLineReqs()}
   catch(e){toast(isNetErr(e)?'ไม่มีเน็ต — ส่งขออนุมัติไม่ได้ ลองใหม่เมื่อมีเน็ต':e.message)}
+}
+
+/* ---------- 🔗 แชร์ใบขอรถเสริมให้ผู้ให้บริการรถเสริม (ต้องรัน supabase/009_share.sql) ---------- */
+// ผู้อนุมัติ (แอดมินคาร์เรนท์) กดจากคำขอรถเสริมที่อนุมัติแล้ว → ได้ลิงก์ ?s=TOKEN ส่งทาง LINE
+// ผู้รับเปิดลิงก์ได้ไม่ต้องล็อกอิน · ข้อมูลถูกคัดลอก ณ ตอนแชร์ · หมดอายุ/ยกเลิกได้
+const SHARE_TH_M=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+const SHARE_TH_D=['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
+function shareUrl(tok){return location.origin+location.pathname+'?s='+encodeURIComponent(tok)}
+function shareDateTH(iso){const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(iso||'');if(!m)return iso||'';const d=new Date(+m[1],+m[2]-1,+m[3]);return `${SHARE_TH_D[d.getDay()]} ${+m[3]} ${SHARE_TH_M[+m[2]-1]} ${+m[1]+543}`}
+function shareWhen(t){return t?new Date(t).toLocaleString('th-TH',{dateStyle:'short',timeStyle:'short'}):''}
+function shareText(d,url){const sh=d.shift==='night'?'กะดึก':'กะเช้า';
+  return [`🚐 รถเสริม ${shareDateTH(d.day)} · ${sh}`,d.arrive?`ต้องถึง ${d.dest&&d.dest.name||'โรงงาน'} ก่อน ${d.arrive}`:'',`${d.riders.length} คน`,'',
+    ...d.riders.map(r=>`${r.n}. ${r.name}${r.team?` (${r.team})`:''} · ${r.place||'-'} · ${r.phone||'-'}`),'',url?`แผนที่+นำทาง: ${url}`:''].filter((x,i,a)=>x||a[i-1]).join('\n')}
+
+async function shareSheet(reqId){
+  let shares=[];
+  const load=async()=>{const {data,error}=await sb.from('extra_shares').select('id,token,provider,with_coords,created_at,expires_at,revoked_at,views,last_view_at,created_label').eq('request_id',reqId).order('created_at',{ascending:false});
+    if(error)throw error;shares=data||[]};
+  const list=()=>shares.length?shares.map(s=>{const dead=s.revoked_at||new Date(s.expires_at)<new Date();
+    return `<div class="g-req ${dead?'st-cancelled':'st-approved'}"><div class="g-rh"><b>${esc(s.provider||'(ไม่ระบุผู้รับ)')}</b>${s.with_coords?' · 📍':''}<span class="g-st">${s.revoked_at?'ยกเลิกแล้ว':dead?'หมดอายุ':'ใช้ได้ถึง '+shareWhen(s.expires_at)}</span></div>
+      <div class="hint">สร้าง ${shareWhen(s.created_at)} โดย ${esc(s.created_label||'')} · เปิดแล้ว ${s.views} ครั้ง${s.last_view_at?' (ล่าสุด '+shareWhen(s.last_view_at)+')':''}</div>
+      ${dead?'':`<div class="g-row"><button data-copy="${esc(s.token)}">คัดลอกลิงก์</button><a class="navbtn" href="https://line.me/R/msg/text/?${encodeURIComponent(shareUrl(s.token))}" target="_blank" rel="noopener">ส่ง LINE</a><button class="danger" data-revoke="${s.id}">ยกเลิกลิงก์</button></div>`}</div>`}).join(''):'<p class="hint">ยังไม่เคยแชร์คำขอนี้</p>';
+  openSheet(`<h3>🔗 แชร์ให้ผู้ให้บริการรถเสริม</h3>
+   <p class="hint">ผู้รับเปิดลิงก์ได้โดยไม่ต้องล็อกอิน เห็นเฉพาะคนที่ขึ้นรถเสริม: ชื่อ เบอร์ จุดรับ และพิกัดพร้อมปุ่มนำทาง · ลิงก์เป็นข้อมูล ณ ตอนแชร์ ถ้าแก้รายชื่อทีหลังให้แชร์ใหม่</p>
+   <div class="field"><label for="sh-prov">ส่งให้ (ชื่อบริษัท/คนขับรถเสริม)</label><input id="sh-prov" value="${esc((S.form&&S.form.shareProvider)||'')}" placeholder="เช่น หจก.รถตู้ใจดี / พี่สมศักดิ์"></div>
+   <div class="row2"><div class="field"><label for="sh-hrs">ลิงก์ใช้ได้</label><select id="sh-hrs"><option value="12">12 ชั่วโมง</option><option value="24">1 วัน</option><option value="48" selected>2 วัน</option><option value="72">3 วัน</option><option value="168">7 วัน</option></select></div>
+   <label style="display:flex;gap:8px;align-items:center;align-self:end;min-height:44px"><input type="checkbox" id="sh-ll" checked style="min-height:auto"> แนบพิกัดบ้าน + ปุ่มนำทาง</label></div>
+   <p class="hint">🔒 พิกัดบ้านเป็นข้อมูลส่วนบุคคล — ส่งเฉพาะผู้ให้บริการที่ไว้ใจ และยกเลิกลิงก์เมื่อจบงาน</p>
+   <div id="sh-new"></div>
+   <div class="foot"><span></span><div><button class="ghost" data-act="close">ปิด</button><button class="primary" id="sh-go">สร้างลิงก์</button></div></div>
+   <h3 style="margin-top:6px">ลิงก์ที่แชร์แล้ว</h3><div id="sh-list" style="display:flex;flex-direction:column;gap:8px"><p class="hint">กำลังโหลด…</p></div>`,sh=>{
+    const draw=()=>{sh.querySelector('#sh-list').innerHTML=list()};
+    load().then(draw,e=>{sh.querySelector('#sh-list').innerHTML=`<p class="danger">${esc(e.message)}</p>`});
+    sh.querySelector('#sh-go').onclick=async ev=>{const b=ev.currentTarget;b.disabled=true;
+      const prov=sh.querySelector('#sh-prov').value.trim();
+      try{const r=await rpc('share_extra',{p_request:reqId,p_provider:prov||null,p_hours:+sh.querySelector('#sh-hrs').value,p_with_coords:sh.querySelector('#sh-ll').checked});
+        const url=shareUrl(r.token);
+        if(prov&&S.form&&S.form.shareProvider!==prov&&typeof saveDoc==='function'){S.form={...S.form,shareProvider:prov};saveDoc('settings/form',S.form)}
+        sh.querySelector('#sh-new').innerHTML=`<div class="banner" style="flex-direction:column;align-items:stretch;gap:6px"><b>✓ สร้างลิงก์แล้ว — ใช้ได้ถึง ${shareWhen(r.expires_at)}</b>
+          <input readonly value="${esc(url)}" id="sh-url" style="font-size:13px" aria-label="ลิงก์">
+          <div class="g-row"><button class="primary" data-copy="${esc(r.token)}">คัดลอกลิงก์</button><a class="navbtn" href="https://line.me/R/msg/text/?${encodeURIComponent(url)}" target="_blank" rel="noopener">ส่ง LINE</a><a class="navbtn" href="${esc(url)}" target="_blank" rel="noopener">ดูตัวอย่าง</a></div></div>`;
+        await load();draw();toast('สร้างลิงก์แล้ว');
+      }catch(e){toast(isNetErr(e)?'ไม่มีเน็ต — สร้างลิงก์ไม่ได้':e.message)}finally{b.disabled=false}};
+    sh.addEventListener('click',async e=>{
+      const c=e.target.closest('[data-copy]'),v=e.target.closest('[data-revoke]');
+      if(c){try{await navigator.clipboard.writeText(shareUrl(c.dataset.copy));toast('คัดลอกลิงก์แล้ว')}catch{const i=sh.querySelector('#sh-url');if(i){i.select();toast('กดค้างที่ลิงก์แล้วเลือกคัดลอก')}}}
+      if(v){if(!v.classList.contains('armed')){v.classList.add('armed');v.textContent='กดอีกครั้งเพื่อยกเลิก';return}
+        v.disabled=true;try{await rpc('revoke_extra_share',{p_id:v.dataset.revoke});await load();draw();toast('ยกเลิกลิงก์แล้ว — ผู้รับเปิดไม่ได้อีก')}catch(err){toast(err.message);v.disabled=false}}
+    });
+  });
+}
+
+// ---------- หน้าที่ผู้รับเปิด (?s=TOKEN) ----------
+function shareBoot(){
+  const tok=new URLSearchParams(location.search).get('s');if(!tok)return false;
+  document.title='รถเสริม · TanKa';
+  document.body.innerHTML=`<style>
+:root{--bg:#f2f4f6;--surface:#fff;--ink:#16212b;--muted:#5b6977;--line:#d6dde4;--accent:#0f5c7a;--accent-ink:#fff;--bad:#b4233a}
+@media (prefers-color-scheme:dark){:root{--bg:#0f151b;--surface:#17202a;--ink:#e5ecf2;--muted:#93a1ae;--line:#2b3642;--accent:#5cb8d8;--accent-ink:#06202b;--bad:#ff7b8a}}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Sukhumvit Set","Noto Sans Thai",sans-serif}
+.sv a{color:var(--accent)}
+.sv{max-width:720px;margin:0 auto;padding:16px 16px calc(24px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:12px}
+.sv h1{font-size:20px;margin:0}.sv .sub{color:var(--muted);font-size:14px}
+.sv .box{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.sv .big{font-size:17px;font-weight:700}
+.sv .rd{display:flex;gap:12px;align-items:flex-start}
+.sv .no{flex:none;width:34px;height:34px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-weight:700}
+.sv .nm{font-weight:700;font-size:16px}.sv .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.sv a.b{display:inline-flex;align-items:center;min-height:40px;padding:0 12px;border-radius:8px;border:1px solid var(--line);color:var(--ink);text-decoration:none;background:var(--surface)}
+.sv a.b.p{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+.sv .warn{color:var(--bad,#b4233a);font-size:13px}.sv .muted{color:var(--muted);font-size:13px}
+</style><main class="sv" id="sv"><p class="sub">กำลังโหลด…</p></main>`;
+  (async()=>{const root=document.getElementById('sv');
+    let res;try{const {data,error}=await sb.rpc('get_extra_share',{p_token:tok});if(error)throw error;res=data}catch(e){root.innerHTML=`<div class="box"><b>เปิดลิงก์ไม่ได้</b><span class="muted">${esc(isNetErr(e)?'ไม่มีอินเทอร์เน็ต ลองใหม่อีกครั้ง':e.message)}</span></div>`;return}
+    if(!res||!res.ok){root.innerHTML=`<div class="box"><b>${esc((res&&res.error)||'เปิดลิงก์ไม่ได้')}</b><span class="muted">ติดต่อผู้ที่ส่งลิงก์ให้</span></div>`;return}
+    const d=res.data,sh=d.shift==='night'?'กะดึก':'กะเช้า',ll=r=>r.lat!=null&&r.lng!=null&&isFinite(r.lat)&&isFinite(r.lng)?(+r.lat).toFixed(6)+','+(+r.lng).toFixed(6):null;
+    const dest=(d.dest&&d.dest.ll||'').replace(/\s+/g,'');
+    const pts=d.riders.map(ll).filter(Boolean);const links=[];
+    for(let i=0;i<pts.length;i+=9){const seg=pts.slice(i,i+9);const last=i+9>=pts.length;
+      const to=last&&dest?dest:seg[seg.length-1],way=last&&dest?seg:seg.slice(0,-1);
+      links.push('https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+encodeURIComponent(to)+(way.length?'&waypoints='+encodeURIComponent(way.join('|')):''))}
+    const ev=d.extraVan||{},ct=d.contact||{};
+    root.innerHTML=`<header><h1>🚐 รายชื่อรับ รถเสริม</h1><div class="sub">${esc(d.company||'')}${d.van?' · สาย '+esc(d.van):''}${res.provider?' · ส่งถึง '+esc(res.provider):''}</div></header>
+      <section class="box"><span class="big">${esc(shareDateTH(d.day))} · ${sh}</span>
+        ${d.arrive?`<span>ต้องถึง <b>${esc(d.dest&&d.dest.name||'โรงงาน')}</b> ก่อน <b>${esc(d.arrive)} น.</b></span>`:''}
+        <span>${d.riders.length} คน${pts.length<d.riders.length?` · <span class="warn">${d.riders.length-pts.length} คนไม่มีพิกัด — โทรถามจุดรับ</span>`:''}</span>
+        ${ev.plate||ev.driver?`<span class="muted">รถเสริม ${esc([ev.no,ev.plate].filter(Boolean).join(' '))}${ev.driver?' · พขร. '+esc(ev.driver):''}</span>`:''}
+        ${ct.phone?`<span class="muted">ติดต่อรถหลัก: ${esc(ct.name||'')} <a href="tel:${esc(ct.phone.replace(/[^\d+]/g,''))}">${esc(ct.phone)}</a></span>`:''}
+        ${links.length?`<div class="row">${links.map((u,i)=>`<a class="b p" href="${esc(u)}" target="_blank" rel="noopener">▶ นำทางทั้งเส้นทาง${links.length>1?` ช่วง ${i+1}`:''}</a>`).join('')}</div>`:''}
+      </section>
+      ${d.riders.map(r=>{const p=ll(r);const tel=(r.phone||'').replace(/[^\d+]/g,'');
+        return `<section class="box"><div class="rd"><span class="no">${r.n}</span><div style="flex:1;min-width:0"><div class="nm">${esc(r.name)}${r.team?` <span class="muted">(${esc(r.team)})</span>`:''}</div>
+          <div>${esc(r.place||'-')}</div>
+          <div class="row">${tel?`<a class="b" href="tel:${esc(tel)}">📞 ${esc(r.phone)}</a>`:''}${p?`<a class="b" href="https://www.google.com/maps/search/?api=1&query=${p}" target="_blank" rel="noopener">📍 แผนที่</a><a class="b p" href="https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${p}" target="_blank" rel="noopener">นำทาง</a>`:'<span class="warn">ไม่มีพิกัด</span>'}</div></div></div></section>`}).join('')}
+      <div class="row"><a class="b" href="#" id="sv-copy">คัดลอกรายชื่อ (ข้อความ)</a></div>
+      <p class="muted">ลิงก์ใช้ได้ถึง ${esc(shareWhen(res.expires_at))} · ส่งโดย ${esc(res.created_label||'')} · 🔒 ข้อมูลส่วนบุคคล ใช้เพื่อรับ-ส่งพนักงานเท่านั้น ห้ามส่งต่อ</p>`;
+    document.getElementById('sv-copy').onclick=async e=>{e.preventDefault();try{await navigator.clipboard.writeText(shareText(d,location.href));e.target.textContent='คัดลอกแล้ว ✓'}catch{e.target.textContent='คัดลอกไม่ได้ในเบราว์เซอร์นี้'}};
+  })();
+  return true;
 }
 
 function startApp(adapter){
@@ -1684,7 +1784,7 @@ function startApp(adapter){
       selectMonth(S.months.some(m=>m.id===cur)?cur:S.months[0]?.id||null)}
     gotM=true;done();render()},e=>toast(e.message));
 }
-boot();
+if(!shareBoot())boot();   // ?s=TOKEN → หน้ารายชื่อรถเสริมที่แชร์ (ไม่ต้องล็อกอิน)
 if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost'))navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>
 
