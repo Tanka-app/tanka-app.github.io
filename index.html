@@ -1024,10 +1024,23 @@ const LOGO_TS="";
 const LOGO_ACS="";
 const FORM_DEF={company:'',addr1:'',addr2:'',email:'',title:'ขอใช้รถเสริม',driver:'',driverPhone:'',mainNo:'',mainPlate:'',extraNo:'',extraPlate:'',extraDriver:'',extraPhone:'',defaultExtra:4,logo1:'',logo2:''};
 S.form={...FORM_DEF};
-function openFormSetup(){
+/* หัวฟอร์มจากบริษัท + คนขับ/ทะเบียนจากสาย — เวอร์ชันระบบเช่า (TanKa) ใส่ window.LINE_FORM={header,driver,plate,canHead} */
+const HEAD_KEYS=['company','addr1','addr2','email','title','logo1','logo2'];
+function formEff(){const F={...S.form};const L=window.LINE_FORM;if(!L)return F;const H=L.header||{};
+  for(const k of HEAD_KEYS)if(H[k])F[k]=H[k];
+  if(L.driver&&L.driver.name){F.driver=L.driver.name;if(L.driver.phone)F.driverPhone=L.driver.phone}
+  if(L.plate)F.mainPlate=L.plate;return F}
+function formLock(k){const L=window.LINE_FORM;if(!L)return '';const H=L.header||{};
+  if(HEAD_KEYS.includes(k))return !L.canHead&&HEAD_KEYS.some(x=>H[x])?'บริษัท':'';
+  if(k==='driver')return L.driver&&L.driver.name?'สาย':'';
+  if(k==='driverPhone')return L.driver&&L.driver.phone?'สาย':'';
+  if(k==='mainPlate')return L.plate?'สาย':'';return ''}
+function openFormSetup(fresh){
+  if(!fresh&&window.loadLineForm){window.loadLineForm().finally(()=>openFormSetup(true));return}
   const d=S.days[S.day];if(!d)return;
   let shift=S.mShift||((h=>h>=5&&h<17)(new Date().getHours())?'morning':'night');
-  const F=S.form;
+  const F=formEff();
+  const ro=k=>{const w=formLock(k);return w?` readonly style="background:var(--sunk);color:var(--muted)" title="${w==='สาย'?'ตามคนขับ/รถของสาย — แก้ที่หน้าบริษัท':'ใช้ร่วมทั้งบริษัท — แอดมินเป็นคนแก้'}"`:''};
   const body=()=>{const L=d[shift]||[];const n=Math.min(F.defaultExtra,L.length);
     return `<div class="field"><label>รายชื่อ — ติ๊ก = ขึ้นรถเสริม (เรียงตามลำดับรับ)</label><div class="pick" id="pick">${L.map((r,i)=>`<label class="${r.status==='no'?'x':''}"><input type="checkbox" data-i="${i}" ${i<n&&r.status!=='no'?'checked':''}><span>${i+1}. ${esc(r.name)}${r.ot?' <span class="otb">OT</span>':''}${r.status==='no'?' <span class="danger">(ไม่ขึ้น)</span>':''}<br><span class="hint">${esc(r.place)}</span></span><span class="tag">รถเสริม</span></label>`).join('')||'<div class="empty-row">ไม่มีคนในกะนี้</div>'}</div></div>
     <div style="display:flex;flex-wrap:wrap;gap:6px"><button type="button" id="q-first">${F.defaultExtra} คนแรก → รถเสริม</button><button type="button" id="q-none">ไม่ใช้รถเสริม</button></div>`};
@@ -1035,16 +1048,16 @@ function openFormSetup(){
    <div class="shift-switch" style="display:flex" id="fshift">${['morning','night'].map(s=>`<button class="${s} ${s===shift?'on':''}" data-s="${s}">${SH[s].label} (${(d[s]||[]).length})</button>`).join('')}</div>
    <div id="fbody">${body()}</div>
    <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="f-skipno" checked style="min-height:auto"> ไม่ใส่คนที่กด “ไม่ขึ้น”</label>
-   <details class="cfg"><summary>ข้อมูลหัวฟอร์ม / รถ / คนขับ</summary>
-    <div class="field"><label for="c-company">บริษัท (หัวกระดาษ)</label><input id="c-company" value="${esc(F.company)}"></div>
-    <div class="field"><label for="c-addr1">ที่อยู่ (บรรทัด 1)</label><input id="c-addr1" value="${esc(F.addr1)}"></div>
-    <div class="field"><label for="c-addr2">เลขผู้เสียภาษี / โทร (บรรทัด 2)</label><input id="c-addr2" value="${esc(F.addr2)}"></div>
-    <div class="field"><label for="c-email">E-Mail</label><input id="c-email" value="${esc(F.email)}"></div>
-    <div class="field"><label for="c-title">ชื่อฟอร์ม</label><input id="c-title" value="${esc(F.title)}"></div>
-    <div class="row2"><div class="field"><label for="c-driver">พนักงานขับรถหลัก</label><input id="c-driver" value="${esc(F.driver)}"></div><div class="field"><label for="c-driverPhone">เบอร์โทร</label><input id="c-driverPhone" value="${esc(F.driverPhone)}"></div></div>
-    <div class="row2"><div class="field"><label for="c-mainNo">รถหลัก เบอร์</label><input id="c-mainNo" value="${esc(F.mainNo)}"></div><div class="field"><label for="c-mainPlate">ทะเบียนรถหลัก</label><input id="c-mainPlate" value="${esc(F.mainPlate)}"></div></div>
-    <div class="row2"><div class="field"><label for="c-extraNo">รถเสริม เบอร์</label><input id="c-extraNo" value="${esc(F.extraNo)}"></div><div class="field"><label for="c-extraPlate">ทะเบียนรถเสริม</label><input id="c-extraPlate" value="${esc(F.extraPlate)}"></div></div>
-    <div class="row2"><div class="field"><label for="c-extraDriver">พขร. รถเสริม</label><input id="c-extraDriver" value="${esc(F.extraDriver)}"></div><div class="field"><label for="c-extraPhone">เบอร์โทร พขร. รถเสริม</label><input id="c-extraPhone" value="${esc(F.extraPhone)}"></div></div>
+   <details class="cfg"><summary>ข้อมูลหัวฟอร์ม / รถ / คนขับ</summary>${window.LINE_FORM?`<p class="hint" style="margin:6px 0 10px">หัวกระดาษ (บริษัท ที่อยู่ อีเมล ชื่อฟอร์ม โลโก้) ใช้ร่วมกันทุกสายของบริษัท${window.LINE_FORM.canHead?" — แก้ตรงนี้แล้วทุกสายเปลี่ยนตาม":" — แอดมินบริษัทเป็นคนแก้"} · ชื่อ/เบอร์คนขับหลัก และทะเบียนรถหลัก ดึงจากข้อมูลสายในหน้าบริษัท (ช่องสีเทา)</p>`:""}
+    <div class="field"><label for="c-company">บริษัท (หัวกระดาษ)</label><input id="c-company" value="${esc(F.company)}"${ro('company')}></div>
+    <div class="field"><label for="c-addr1">ที่อยู่ (บรรทัด 1)</label><input id="c-addr1" value="${esc(F.addr1)}"${ro('addr1')}></div>
+    <div class="field"><label for="c-addr2">เลขผู้เสียภาษี / โทร (บรรทัด 2)</label><input id="c-addr2" value="${esc(F.addr2)}"${ro('addr2')}></div>
+    <div class="field"><label for="c-email">E-Mail</label><input id="c-email" value="${esc(F.email)}"${ro('email')}></div>
+    <div class="field"><label for="c-title">ชื่อฟอร์ม</label><input id="c-title" value="${esc(F.title)}"${ro('title')}></div>
+    <div class="row2"><div class="field"><label for="c-driver">พนักงานขับรถหลัก</label><input id="c-driver" value="${esc(F.driver)}"${ro('driver')}></div><div class="field"><label for="c-driverPhone">เบอร์โทร</label><input id="c-driverPhone" value="${esc(F.driverPhone)}"${ro('driverPhone')}></div></div>
+    <div class="row2"><div class="field"><label for="c-mainNo">รถหลัก เบอร์</label><input id="c-mainNo" value="${esc(F.mainNo)}"${ro('mainNo')}></div><div class="field"><label for="c-mainPlate">ทะเบียนรถหลัก</label><input id="c-mainPlate" value="${esc(F.mainPlate)}"${ro('mainPlate')}></div></div>
+    <div class="row2"><div class="field"><label for="c-extraNo">รถเสริม เบอร์</label><input id="c-extraNo" value="${esc(F.extraNo)}"${ro('extraNo')}></div><div class="field"><label for="c-extraPlate">ทะเบียนรถเสริม</label><input id="c-extraPlate" value="${esc(F.extraPlate)}"${ro('extraPlate')}></div></div>
+    <div class="row2"><div class="field"><label for="c-extraDriver">พขร. รถเสริม</label><input id="c-extraDriver" value="${esc(F.extraDriver)}"${ro('extraDriver')}></div><div class="field"><label for="c-extraPhone">เบอร์โทร พขร. รถเสริม</label><input id="c-extraPhone" value="${esc(F.extraPhone)}"${ro('extraPhone')}></div></div>
     <div class="row2"><div class="field"><label for="c-logo1f">โลโก้ซ้าย</label><input id="c-logo1f" type="file" accept="image/*"></div><div class="field"><label for="c-logo2f">โลโก้ขวา</label><input id="c-logo2f" type="file" accept="image/*"></div></div>
     <div class="row2"><div class="field"><label for="c-defaultExtra">จำนวนรถเสริมเริ่มต้น</label><input id="c-defaultExtra" type="number" min="0" max="20" value="${F.defaultExtra}"></div></div>
    </details>
@@ -1060,7 +1073,12 @@ function openFormSetup(){
       const keys=Object.keys(FORM_DEF);const nf={...F};
       keys.forEach(k=>{const el=sh.querySelector('#c-'+k);if(el)nf[k]=k==='defaultExtra'?Math.max(0,+el.value||0):el.value.trim()});
       for(const k of ['logo1','logo2']){const u=sh.dataset[k];if(u)nf[k]=u}
-      if(JSON.stringify(nf)!==JSON.stringify(F)){S.form=nf;saveDoc('settings/form',nf)}
+      const LF=window.LINE_FORM;
+      if(LF){for(const k of ['driver','driverPhone','mainPlate',...HEAD_KEYS])if(formLock(k))nf[k]=S.form[k];
+        if(LF.canHead&&window.saveLineHeader){const H=LF.header||{};const h={};HEAD_KEYS.forEach(k=>h[k]=nf[k]||'');
+          if(HEAD_KEYS.some(k=>h[k]!==(H[k]||'')))window.saveLineHeader(h);
+          HEAD_KEYS.forEach(k=>nf[k]=S.form[k])}}
+      if(JSON.stringify(nf)!==JSON.stringify(S.form)){S.form=nf;saveDoc('settings/form',nf)}
       const skip=sh.querySelector('#f-skipno').checked;const L=d[shift]||[];
       const extraIdx=new Set([...sh.querySelectorAll('#pick input:checked')].map(x=>+x.dataset.i));
       const keep=L.map((r,i)=>({r,i})).filter(o=>!(skip&&o.r.status==='no'));
@@ -1076,7 +1094,7 @@ function formTable(list,minRows){
   const n=Math.max(minRows,list.length);let rows='';
   for(let i=0;i<n;i++){const r=list[i];rows+=`<tr><td class="c">${i+1}</td><td>${r?esc(r.name):''}</td><td class="c">${r?esc(r.team):''}</td><td>${r?esc(r.place):''}</td><td class="c">${r?esc(r.phone):''}</td></tr>`}
   return `<table class="ft"><colgroup><col style="width:9%"><col style="width:32%"><col style="width:10%"><col style="width:28%"><col style="width:21%"></colgroup><thead><tr><th>ลำดับ</th><th>ชื่อ</th><th>กะ</th><th>ที่อยู่</th><th>เบอร์โทร</th></tr></thead><tbody>${rows}</tbody></table>`}
-function formHtml(f){const F=S.form;const be=beParts(f);const box=on=>`<span class="box">${on?'✓':''}</span>`;
+function formHtml(f){const F=formEff();const be=beParts(f);const box=on=>`<span class="box">${on?'✓':''}</span>`;
   return `<div class="paper" id="paper">
    <div class="lh">${F.logo1?`<img class="lg1" src="${F.logo1}" alt="">`:'<span></span>'}<div class="lt"><b>${esc(F.company)}</b><div>${esc(F.addr1)}</div><div>${esc(F.addr2)}</div><div>E-Mail : <u>${esc(F.email)}</u></div></div>${F.logo2?`<img class="lg2" src="${F.logo2}" alt="">`:'<span></span>'}</div>
    <div class="ftitle">${esc(F.title)}</div>
@@ -1090,7 +1108,7 @@ function formHtml(f){const F=S.form;const be=beParts(f);const box=on=>`<span cla
    <div class="fl" style="margin-top:26px"><b>OT.จำนวน</b> ${fill(f.ot.length,70)} <b>ท่าน</b></div>
    ${formTable(f.ot,3)}
   </div>`}
-function formText(f){const F=S.form;const sh=SH[f.shift];const line=(r,i)=>`${i+1}. ${r.name} (${r.team}) ${r.place} ${r.phone}`;
+function formText(f){const F=formEff();const sh=SH[f.shift];const line=(r,i)=>`${i+1}. ${r.name} (${r.team}) ${r.place} ${r.phone}`;
   return [`${F.title} — ${formTitleDate(f)}`,`${sh.label} ${sh.xl}  รวม ${f.main.length+f.extra.length} คน`,'',
    `รถหลัก ${F.mainNo} (${f.main.length} คน)`,...f.main.map(line),'',`รถเสริม ${F.extraPlate||''} (${f.extra.length} คน)`,...(f.extra.length?f.extra.map(line):['-']),'',
    `OT ${f.ot.length} คน`,...(f.ot.length?f.ot.map((r,i)=>`${i+1}. ${r.name}`):['-'])].join('\n')}
@@ -1114,7 +1132,7 @@ function showForm(f){
         const cv=await html2canvas(host.querySelector('#paper'),{scale:2,backgroundColor:'#ffffff'});sc.style.transform=old;
         const blob=await new Promise(r=>cv.toBlob(r,'image/png'));await dl.save({filename:formFileBase(f)+'.png',data:blob});toast('บันทึกรูปแล้ว')}
       catch(err){if(err?.code!=='declined')toast('บันทึกรูปไม่สำเร็จ: '+(err?.message||err?.code))}finally{b.disabled=false}}
-    if(a==='xlsx'){const F=S.form;const sh=SH[f.shift];const hdr=['ลำดับ','ชื่อ','กะ','ที่อยู่','เบอร์โทร'];const rows=(L,n=6)=>Array.from({length:Math.max(n,L.length)},(_,i)=>L[i]?[i+1,L[i].name,L[i].team,L[i].place,L[i].phone]:[i+1,'','','','']);
+    if(a==='xlsx'){const F=formEff();const sh=SH[f.shift];const hdr=['ลำดับ','ชื่อ','กะ','ที่อยู่','เบอร์โทร'];const rows=(L,n=6)=>Array.from({length:Math.max(n,L.length)},(_,i)=>L[i]?[i+1,L[i].name,L[i].team,L[i].place,L[i].phone]:[i+1,'','','','']);
       const be=beParts(f);
       const aoa=[[F.company],[F.addr1],[F.addr2],['E-Mail : '+F.email],[],[F.title],[`วันที่ ${be.d} เดือน ${be.m} พ.ศ. ${be.y}`],[],
         [`( รถหลัก ) เบอร์ ${F.mainNo}  ทะเบียนรถ ${F.mainPlate}  ขอใช้รถเสริมในช่วง ${f.shift==='morning'?'☑ เช้า  ☐ เย็น':'☐ เช้า  ☑ เย็น'}`],[`พขร. ${F.driver}   เบอร์โทร ${F.driverPhone}`],hdr,...rows(f.main),[],
@@ -1509,6 +1527,22 @@ async function boot(){
   if(ov&&ov.role&&ov.role!=='driver'){openVan(ov);return}
   showConsole();
 }
+
+/* ---------- ใบขอรถ: หัวฟอร์มของบริษัท + คนขับ/ทะเบียนของสาย (011_form_header.sql) ---------- */
+window.loadLineForm=async function(){
+  const key='tk:lf:'+CTX.vanId;
+  try{if(!sb||!CTX.vanId)return;
+    const r=await Promise.race([sb.rpc('line_form_info',{p_van:CTX.vanId}),new Promise((_,j)=>setTimeout(()=>j(new Error('timeout')),5000))]);
+    if(r.error)throw r.error;
+    if(r.data){window.LINE_FORM={header:r.data.header||{},driver:r.data.driver||null,plate:r.data.plate||'',canHead:!!r.data.can_head};LS.set(key,window.LINE_FORM)}
+  }catch(e){if(!window.LINE_FORM){const c=LS.get(key,null);if(c)window.LINE_FORM=c}}
+};
+window.saveLineHeader=async function(h){
+  const L=window.LINE_FORM;const old=L&&L.header;if(L){L.header={...h};LS.set('tk:lf:'+CTX.vanId,L)}
+  const {error}=await sb.rpc('set_company_form_header',{p_company:CTX.companyId,p_header:h});
+  if(error){if(L){L.header=old;LS.set('tk:lf:'+CTX.vanId,L)}toast('บันทึกหัวฟอร์มบริษัทไม่สำเร็จ: '+error.message);return}
+  toast('บันทึกหัวฟอร์มแล้ว — ใช้กับทุกสายของบริษัท');
+};
 
 /* ---------- หน้าบริษัท: สาย · คำขอ · รถ/เจ้าของ · ผู้เช่า · ทีมงาน · ประวัติ ---------- */
 const ROLE_TH={owner:'เจ้าของบัญชี (อนุมัติได้)',admin:'แอดมิน (อนุมัติได้)',staff:'พนักงาน (ต้องขออนุมัติ)',super:'ผู้ดูแลระบบ TanKa'};
