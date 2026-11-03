@@ -1760,13 +1760,14 @@ async function showHome(sc,user){
   const coName=id=>esc((cos.find(c=>c.id===id)||{}).name||'');const mine=new Set(cos.map(c=>c.id));
   const others=(sc.lines||[]).filter(l=>l.access!=='edit'||!mine.has(l.company_id));
   gate(`<div class="g-top"><div><h2>สวัสดี</h2><span class="hint">${esc(user.email)}${sc.super?' · ผู้ดูแลระบบ TanKa':''}</span></div><button class="ghost" id="g-out">ออกจากระบบ</button></div>
+   ${sc.super?'<button class="g-big" id="g-users" style="text-align:left">👥 รายชื่อผู้สมัคร<br><span class="hint">ดู / ลบบัญชีที่สมัครเข้าแอป</span></button>':''}
    ${dels.length?`<h3 class="danger">🗑 คำขอลบรออนุมัติ (${dels.length})</h3><div id="g-dels">${dels.map(r=>`<div class="hint" style="margin-top:6px">🏢 ${coName(r.company_id)}</div>`+reqCard(r,{super:true,vans:[]},true)).join('')}</div>`:''}
    ${cos.length?`<h3>บริษัท</h3>${cos.map(c=>`<button class="g-big" data-co="${c.id}" style="text-align:left">🏢 ${esc(c.name)}<br><span class="hint">${ROLE_TH[c.role]||c.role}${cos.filter(x=>x.name===c.name).length>1?` · รหัส ${c.id.slice(0,6)}`:''}</span></button>`).join('')}`:''}
    ${others.length?`<h3>สายที่ดูได้</h3>${others.map(l=>`<button class="g-big" data-line="${l.id}" style="text-align:left">🚐 ${esc(l.name)}${l.plate?' · '+esc(l.plate):''}<br><span class="hint">${l.tenant?'ผู้เช่า '+esc(l.tenant)+' · ':''}${l.access==='owner'?'เจ้าของรถ (แก้ = ขออนุมัติ)':'ดูอย่างเดียว'}</span></button>`).join('')}`:''}
    ${!cos.length&&!others.length?'<p class="hint">บัญชีนี้ยังไม่ได้อยู่ในบริษัทไหน — ถ้าคุณเป็นเจ้าของรถหรือผู้เช่า ให้บริษัทคาร์เรนท์เพิ่มอีเมลนี้ หรือสร้างบริษัทใหม่ด้านล่าง</p>':''}
    ${gForm('f-co',['+ สร้างบริษัทคาร์เรนท์ใหม่',`<div class="field"><label for="g-co">ชื่อบริษัท</label><input id="g-co" placeholder="เช่น บริษัท ... คาร์เรนท์"></div><button class="primary" id="g-mk">สร้าง</button>`])}
    <p class="g-err danger"></p>`);
-  $('#g-out').onclick=signOutAll;
+  $('#g-out').onclick=signOutAll;const gu=$('#g-users');if(gu)gu.onclick=()=>showUsers(sc,user);
   wireReq(G,()=>showConsole());
   G.querySelectorAll('[data-co]').forEach(b=>b.onclick=()=>showConsole(b.dataset.co,'lines'));
   G.querySelectorAll('[data-line]').forEach(b=>b.onclick=()=>{const l=others.find(x=>x.id===b.dataset.line);
@@ -1815,6 +1816,30 @@ function pendTag(id){const m=pendEmpMap();if(!m.has(id))return '';
   return m.get(id)?' <span class="pendtag">⏳ กำลังรออนุมัติ</span>':' <span class="pendtag del">⏳ รออนุมัติลบ</span>'}
 function pendAdds(){const have=new Set(S.emps.map(e=>e.id));return [...pendEmpMap()].filter(([id,d])=>d&&!have.has(id)).map(([id,d])=>({...d,id}))}
 function pendRefresh(force){const sig=JSON.stringify([...pendEmpMap()].map(([k,v])=>[k,!!v]));if(force||sig!==PEND.sig){PEND.sig=sig;try{render()}catch(e){}}}
+
+/* ---------- ผู้ดูแลระบบ TanKa: รายชื่อผู้สมัคร + ลบ ---------- */
+async function showUsers(sc,user){
+  gate('<p>กำลังโหลด…</p>');
+  let list;try{list=await rpc('admin_list_users')||[]}
+  catch(e){gate(`<p class="danger">${esc(e.message)}</p><p class="hint">ถ้าขึ้นว่าไม่พบฟังก์ชัน ให้รัน supabase/012_users.sql ใน Supabase ก่อน</p><button class="ghost" id="g-back">‹ กลับ</button>`);$('#g-back').onclick=()=>showHome(sc,user);return}
+  const d=t=>t?new Date(t).toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'}):'—';
+  const RT={owner:'เจ้าของ',admin:'แอดมิน',staff:'พนักงาน'};
+  const card=u=>{const tags=[...(u.companies||[]).map(c=>`🏢 ${esc(c.name)} (${RT[c.role]||c.role})`),...(u.tenants||[]).map(t=>`👁 ผู้เช่า ${esc(t)}`),...(u.owners||[]).map(o=>`🚐 เจ้าของรถ ${esc(o)}`)];
+    return `<div class="g-van" data-urow="${u.id}" data-q="${esc((u.email+' '+tags.join(' ')).toLowerCase())}"><div class="g-vh"><b style="word-break:break-all">${esc(u.email)}</b>${u.super?'<span class="g-code">ผู้ดูแลระบบ</span>':''}${u.me?'<span class="hint">(คุณ)</span>':''}</div>
+      <div class="hint">สมัคร ${d(u.created_at)} · เข้าล่าสุด ${d(u.last_sign_in_at)}${u.email_confirmed_at?'':' · <span class="danger">ยังไม่ยืนยันอีเมล</span>'}</div>
+      <div class="hint">${tags.join('<br>')||'ยังไม่ได้อยู่ในบริษัทไหน'}</div>
+      ${u.super||u.me?'':`<div class="g-row"><button class="danger" data-udel="${u.id}">🗑 ลบผู้สมัคร</button></div>`}</div>`};
+  gate(`<div class="g-top"><div><h2>👥 รายชื่อผู้สมัคร (${list.length})</h2><span class="hint">ไม่รวมคนขับ (คนขับเข้าด้วยรหัสรถ + PIN)</span></div><button class="ghost" id="g-back">‹ กลับ</button></div>
+   <input id="u-q" type="search" placeholder="ค้นหาอีเมล / บริษัท">
+   <p class="g-err danger"></p>
+   <div id="u-list" style="display:flex;flex-direction:column;gap:10px">${list.map(card).join('')||'<p class="hint">ยังไม่มีผู้สมัคร</p>'}</div>`);
+  $('#g-back').onclick=()=>showHome(sc,user);
+  $('#u-q').oninput=e=>{const q=e.target.value.trim().toLowerCase();G.querySelectorAll('[data-urow]').forEach(r=>r.hidden=!!q&&!r.dataset.q.includes(q))};
+  G.querySelectorAll('[data-udel]').forEach(b=>b.onclick=async()=>{const u=list.find(x=>x.id===b.dataset.udel);
+    const cos=(u.companies||[]).map(c=>c.name).join(', ');
+    if(!confirm(`ลบผู้สมัคร ${u.email}?\n\n${cos?'จะถูกเอาออกจากบริษัท: '+cos+'\n(บริษัทและข้อมูลสายยังอยู่)\n\n':''}บัญชีนี้จะเข้าแอปไม่ได้อีก — ย้อนกลับไม่ได้`))return;
+    gBusy(b,true);try{await rpc('admin_delete_user',{p_user:u.id});toast('ลบ '+u.email+' แล้ว');showUsers(sc,user)}catch(e){gErr(e);gBusy(b,false)}});
+}
 
 /* ---------- 🔗 แชร์ใบขอรถเสริมให้ผู้ให้บริการรถเสริม (ต้องรัน supabase/009_share.sql) ---------- */
 // ผู้อนุมัติ (แอดมินคาร์เรนท์) กดจากคำขอรถเสริมที่อนุมัติแล้ว → ได้ลิงก์ ?s=TOKEN ส่งทาง LINE
