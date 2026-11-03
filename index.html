@@ -1450,12 +1450,14 @@ function showOwnerLogin(mode){
   gate(`<h2>${mode==='up'?'สมัครบัญชีบริษัท':'เข้าสู่ระบบ (เจ้าของ/แอดมิน)'}</h2>
    <div class="field"><label for="g-mail">อีเมล</label><input id="g-mail" type="email" autocomplete="email"></div>
    <div class="field"><label for="g-pw">รหัสผ่าน${mode==='up'?' (อย่างน้อย 8 ตัว)':''}</label><input id="g-pw" type="password" autocomplete="${mode==='up'?'new-password':'current-password'}"></div>
+   ${mode==='up'?'<div class="field"><label for="g-pw2">ยืนยันรหัสผ่าน (พิมพ์อีกครั้ง)</label><input id="g-pw2" type="password" autocomplete="new-password"></div>':''}
    <p class="g-err danger"></p>
    <button class="primary g-big" id="g-go">${mode==='up'?'สมัคร':'เข้าสู่ระบบ'}</button>
    <button class="ghost" id="g-sw">${mode==='up'?'มีบัญชีแล้ว — เข้าสู่ระบบ':'ยังไม่มีบัญชี — สมัคร'}</button><button class="ghost" id="g-back">‹ กลับ</button>`);
   $('#g-back').onclick=showStart;$('#g-sw').onclick=()=>showOwnerLogin(mode==='up'?'in':'up');
   $('#g-go').onclick=async()=>{const b=$('#g-go'),email=$('#g-mail').value.trim(),password=$('#g-pw').value;
     if(!email||password.length<(mode==='up'?8:1)){gErr(mode==='up'?'ใส่อีเมล และรหัสผ่านอย่างน้อย 8 ตัว':'ใส่อีเมลและรหัสผ่าน');return}
+    if(mode==='up'&&password!==$('#g-pw2').value){gErr('รหัสผ่านทั้ง 2 ช่องไม่ตรงกัน — พิมพ์ใหม่อีกครั้ง');$('#g-pw2').value='';$('#g-pw2').focus();return}
     gBusy(b,true);gErr('');
     try{const {data:{session}}=await sb.auth.getSession();if(session)await sb.auth.signOut();
       if(mode==='up'){const r=await sb.auth.signUp({email,password,options:{emailRedirectTo:location.origin+location.pathname}});if(r.error)throw r.error;
